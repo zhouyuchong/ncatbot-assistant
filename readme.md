@@ -66,6 +66,16 @@ tasks:
 
 `llm.context.max_turns` 表示每个会话保留最近多少轮 user/assistant 对话。该上下文只保存在内存中，重启后会清空；任务状态保存在 SQLite 中。
 
+运行时目录会在启动时自动创建，默认都位于 `data/` 下：
+
+```text
+data/
+  cache/              # JM 下载缓存
+  image/              # setu / 每日新闻图片临时目录
+  pdf/                # JM 生成 PDF 临时目录
+  drive_bot.sqlite3   # 后台任务队列状态库
+```
+
 ## 运行与测试
 
 要求 Python 3.12+。

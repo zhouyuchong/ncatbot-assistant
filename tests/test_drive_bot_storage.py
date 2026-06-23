@@ -1,4 +1,6 @@
+import gc
 import tempfile
+import warnings
 from pathlib import Path
 from unittest import TestCase, main
 
@@ -79,6 +81,30 @@ class DriveBotStorageTest(TestCase):
         self.assertEqual(estimate_seconds(TaskType.JM_DOWNLOAD), 480)
         self.assertEqual(format_duration(65), "1 分 5 秒")
         self.assertEqual(format_duration(30), "30 秒")
+
+    def test_store_operations_close_sqlite_connections(self):
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always", ResourceWarning)
+            task = self.store.enqueue(
+                TaskType.DAILY,
+                ScopeType.PRIVATE,
+                None,
+                "u1",
+                "每日新闻",
+                {},
+                30,
+            )
+            self.store.queue_position(task.id)
+            self.store.estimated_wait_seconds(task.id)
+            self.store.claim_next()
+            self.store.mark_succeeded(task.id, {"sent_images": 1})
+            self.store.get(task.id)
+            gc.collect()
+
+        resource_warnings = [
+            warning for warning in caught if issubclass(warning.category, ResourceWarning)
+        ]
+        self.assertEqual(resource_warnings, [])
 
 
 if __name__ == "__main__":
