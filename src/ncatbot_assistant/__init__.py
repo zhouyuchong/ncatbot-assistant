@@ -1,0 +1,1 @@
+"""NcatBot assistant package."""

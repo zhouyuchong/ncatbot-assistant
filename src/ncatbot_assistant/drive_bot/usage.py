@@ -25,6 +25,6 @@ DRIVE_BOT_USAGE = """Drive Bot 使用方法
 提示：发送“使用方法”可再次查看本说明。"""
 
 
-def is_usage_question(msg: str) -> bool:
-    normalized = msg.strip().lower().strip("。.!！?？")
+def is_usage_question(message: str) -> bool:
+    normalized = message.strip().lower().strip("。.!！?？")
     return normalized in USAGE_KEYWORDS

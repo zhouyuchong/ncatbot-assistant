@@ -2,8 +2,8 @@ name = "drive_bot"
 version = "0.1.0"
 main = "plugin.py"
 author = "damonzzz"
-description = "Drive group helper migrated from code/main.py"
+description = "Drive group helper plugin"
 entry_class = "DriveBotPlugin"
-pip_dependencies = { jmcomic = "", img2pdf = "", Pillow = "", requests = "", aiohttp = "", litellm = ">=1.83.0" }
+pip_dependencies = { jmcomic = "", img2pdf = "", Pillow = "", requests = "", aiohttp = "", litellm = ">=1.83.0", PyYAML = "" }
 
 [dependencies]
