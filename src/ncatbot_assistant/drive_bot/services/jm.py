@@ -68,4 +68,7 @@ def jm_search(tags: list[str], logger) -> str:
     ret_text = ""
     for album_id, title in page:
         ret_text += f"[{album_id}]: {title}\n"
+    if not ret_text:
+        keyword = " ".join(tags)
+        return f"没有找到与「{keyword}」相关的 JM 结果。"
     return ret_text
