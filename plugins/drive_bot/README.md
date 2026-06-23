@@ -11,11 +11,30 @@ llm:
   model: "deepseek-v4-flash"
   temperature: 0.7
   max_tokens: 800
+  context:
+    enabled: true
+    max_turns: 6
 ```
 
 `fake-api-key` 仅用于离线测试；实际使用时请改为可用的 API Key。
 
 AI 兜底会自动加载 `resources/skills/neko-on-everything/`，把其中的轻量角色扮演 prompt 注入 system message。这个 skill 只提供回复风格约束，不安装依赖，也不写入长期记忆。
+
+## LLM 短期上下文
+
+LLM 兜底回复支持短期会话上下文。Bot 会为普通聊天保存最近 N 轮 user/assistant 对话，并在下一次 LLM 请求时按 `system prompt + 最近历史 + 当前问题` 发送。
+
+上下文隔离规则：
+
+- 私聊：按 `user_id` 隔离。
+- 群聊：按 `group_id + user_id` 隔离，避免群里不同用户的聊天互相串上下文。
+
+上下文只保存在内存中，重启后会清空。只有 LLM fallback 会进入上下文；帮助、JM 搜索、JM 下载、涩图、每日新闻、任务完成通知等命令和任务消息不会写入 LLM 上下文。
+
+配置项：
+
+- `llm.context.enabled`：是否启用短期上下文，默认 `true`。
+- `llm.context.max_turns`：每个会话最多保留多少轮 user/assistant 对话，默认 `6`。
 
 ## 后台任务队列
 
@@ -36,12 +55,16 @@ tasks:
 
 ## 依赖
 
-JM 下载并生成 PDF 需要安装：
+JM 下载并生成 PDF、图片下载、AI 兜底需要安装：
 
 ```text
 jmcomic
 img2pdf
 Pillow
+requests
+aiohttp
+litellm
+PyYAML
 ```
 
 插件的 `manifest.toml` 已声明这些依赖。若手动运行本项目，请同步安装 `requirements.txt` 中的依赖，并使用 `PYTHONPATH=src python -m ncatbot_assistant`。
@@ -64,6 +87,8 @@ help
 ```
 
 Bot 会返回本插件的命令说明文本。
+
+群聊中需要 @ Bot 才会处理消息；私聊中会直接处理收到的消息。
 
 ## JM 搜索
 
