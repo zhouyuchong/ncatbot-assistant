@@ -87,10 +87,25 @@ def get_llm_context_config(project_config: dict[str, Any]) -> LlmContextConfig:
     context_config = llm_config.get("context") or {}
     if not isinstance(context_config, dict):
         context_config = {}
-    enabled = context_config.get("enabled", True)
+    enabled = _parse_bool(context_config.get("enabled", True), default=True)
     max_turns = context_config.get("max_turns", 6)
     try:
         max_turns_int = int(max_turns)
     except (TypeError, ValueError):
         max_turns_int = 6
-    return LlmContextConfig(enabled=bool(enabled), max_turns=max(0, max_turns_int))
+    return LlmContextConfig(enabled=enabled, max_turns=max(0, max_turns_int))
+
+
+def _parse_bool(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"1", "true", "yes", "on"}:
+            return True
+        if normalized in {"0", "false", "no", "off"}:
+            return False
+        return default
+    if value is None:
+        return default
+    return bool(value)

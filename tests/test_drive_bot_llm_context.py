@@ -90,6 +90,16 @@ class ShortTermConversationMemoryTest(TestCase):
             LlmContextConfig(enabled=True, max_turns=2),
         )
 
+    def test_context_config_parses_string_boolean_values(self):
+        self.assertEqual(
+            get_llm_context_config({"llm": {"context": {"enabled": "false"}}}),
+            LlmContextConfig(enabled=False, max_turns=6),
+        )
+        self.assertEqual(
+            get_llm_context_config({"llm": {"context": {"enabled": "0"}}}),
+            LlmContextConfig(enabled=False, max_turns=6),
+        )
+
     def test_conversation_key_from_scope(self):
         self.assertEqual(
             ConversationKey.from_scope(ScopeType.PRIVATE, user_id="u1", group_id=None),
