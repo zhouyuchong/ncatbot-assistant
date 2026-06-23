@@ -58,15 +58,10 @@ class ReplyAdapter:
     async def notify_task_done(self, task: TaskRecord) -> None:
         event = self.event_lookup(task)
         if task.status == TaskStatus.SUCCEEDED:
-            text = self._mention(task) + self._success_text(task)
+            text = self._success_text(task)
         else:
-            text = self._mention(task) + f"任务 #{task.id} 失败：{task.error}"
+            text = f"任务 #{task.id} 失败：{task.error}"
         await event.reply(text=text)
-
-    def _mention(self, task: TaskRecord) -> str:
-        if task.scope_type == ScopeType.GROUP:
-            return f"[CQ:at,qq={task.user_id}] "
-        return ""
 
     def _success_text(self, task: TaskRecord) -> str:
         result = task.result or {}

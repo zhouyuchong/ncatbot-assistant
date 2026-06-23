@@ -119,6 +119,30 @@ class DriveBotHandlersTest(IsolatedAsyncioTestCase):
         self.assertEqual(result["sent_images"], 1)
         self.assertEqual(event.replies[0], {"text": "请查收", "image": "/tmp/daily.png"})
 
+    async def test_group_task_done_reply_does_not_include_manual_cq_at(self):
+        event = FakeEvent()
+        reply = ReplyAdapter(file_api=FakeFileApi(), event_lookup=lambda _task: event)
+        task = TaskRecord(
+            id=1,
+            task_type=TaskType.JM_DOWNLOAD,
+            status=TaskStatus.SUCCEEDED,
+            scope_type=ScopeType.GROUP,
+            group_id="g1",
+            user_id="1620404337",
+            raw_message="/jm 123",
+            payload={"album_id": 123},
+            result={"uploaded_files": 1},
+            estimated_seconds=480,
+        )
+
+        await reply.notify_task_done(task)
+
+        self.assertEqual(
+            event.replies[0],
+            {"text": "任务 #1 完成：已上传 1 个文件。", "image": None},
+        )
+        self.assertNotIn("[CQ:at", event.replies[0]["text"])
+
 
 if __name__ == "__main__":
     main()
