@@ -145,6 +145,11 @@ class DriveBotConfigTest(TestCase):
 
         self.assertTrue(hasattr(module, "DriveBotPlugin"))
 
+    def test_config_example_documents_llm_context_defaults(self):
+        config_text = (ROOT / "config.example.yaml").read_text(encoding="utf-8")
+
+        self.assertIn("  context:\n    enabled: true\n    max_turns: 6", config_text)
+
     def test_ask_ai_includes_history_before_current_prompt(self):
         module = load_core_plugin_module()
         ai_api = FakeAiApi(response="继续解释 asyncio")
