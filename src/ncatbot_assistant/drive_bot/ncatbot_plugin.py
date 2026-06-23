@@ -32,6 +32,11 @@ from ncatbot_assistant.drive_bot.intents import (  # noqa: E402
 )
 from ncatbot_assistant.drive_bot.jobs.handlers import TaskHandlers  # noqa: E402
 from ncatbot_assistant.drive_bot.jobs.queue import TaskQueueWorker  # noqa: E402
+from ncatbot_assistant.drive_bot.llm_context import (  # noqa: E402
+    ConversationKey,
+    ShortTermConversationMemory,
+    get_llm_context_config,
+)
 from ncatbot_assistant.drive_bot.reply import ReplyAdapter  # noqa: E402
 from ncatbot_assistant.drive_bot.router import route_message  # noqa: E402
 from ncatbot_assistant.drive_bot.services.jm import search as jm_search  # noqa: E402
@@ -134,6 +139,11 @@ class DriveBotPlugin(NcatBotPlugin):
             }
         )
         project_config = _load_project_config()
+        llm_context_config = get_llm_context_config(project_config)
+        self._conversation_memory = ShortTermConversationMemory(
+            enabled=llm_context_config.enabled,
+            max_turns=llm_context_config.max_turns,
+        )
         self._task_estimates = get_task_estimates(project_config)
         self._events_by_task_id = {}
         self._task_store = TaskStore(get_storage_path(project_config))
@@ -226,7 +236,14 @@ class DriveBotPlugin(NcatBotPlugin):
             return
 
         if isinstance(intent, LlmFallbackIntent):
-            await event.reply(text=await self._ask_ai(intent.prompt))
+            await event.reply(
+                text=await self._ask_ai(
+                    intent.prompt,
+                    scope_type=scope_type,
+                    user_id=user_id,
+                    group_id=group_id,
+                )
+            )
 
     def _enqueue_task(self, intent: QueuedTaskIntent):
         estimated = estimate_seconds(intent.task_type, self._task_estimates)
@@ -252,10 +269,24 @@ class DriveBotPlugin(NcatBotPlugin):
             f"{notify_text}"
         )
 
-    async def _ask_ai(self, prompt: str) -> str:
+    async def _ask_ai(
+        self,
+        prompt: str,
+        scope_type: ScopeType,
+        user_id: str,
+        group_id: str | None,
+    ) -> str:
+        key = ConversationKey.from_scope(
+            scope_type,
+            user_id=user_id,
+            group_id=group_id,
+        )
+        user_prompt = prompt.strip()
+        history = self._conversation_memory.recent_messages(key)
         messages = [
             {"role": "system", "content": _build_ai_system_prompt()},
-            {"role": "user", "content": prompt.strip()},
+            *history,
+            {"role": "user", "content": user_prompt},
         ]
         llm_config = _merge_llm_config(
             _load_project_config(),
@@ -288,7 +319,7 @@ class DriveBotPlugin(NcatBotPlugin):
             )
 
         try:
-            return await ai_api.chat_text(
+            reply = await ai_api.chat_text(
                 messages,
                 model=_litellm_openai_model(model),
                 temperature=temperature,
@@ -296,6 +327,10 @@ class DriveBotPlugin(NcatBotPlugin):
                 api_key=api_key,
                 api_base=base_url,
             )
+            self._conversation_memory.append_user_message(key, user_prompt)
+            self._conversation_memory.append_assistant_message(key, reply)
+            return reply
         except Exception as exc:
+            self._conversation_memory.append_user_message(key, user_prompt)
             self.logger.warning("AI 兜底回复失败: %s", exc)
             return f"AI 暂时不可用喵：{exc}"
