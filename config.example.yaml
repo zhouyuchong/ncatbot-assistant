@@ -29,3 +29,19 @@ logging:
   event_log_levels:
     meta_event: NONE
   event_log_format: summary
+
+llm:
+  api_key: "fake-api-key"
+  base_url: "https://api.deepseek.com"
+  model: "deepseek-v4-flash"
+  temperature: 0.7
+  max_tokens: 800
+
+storage:
+  sqlite_path: "data/drive_bot.sqlite3"
+
+tasks:
+  estimates:
+    jm_download: 480
+    setu: 45
+    daily: 30
