@@ -68,22 +68,24 @@ tasks:
 
 ## 运行与测试
 
+要求 Python 3.12+。
+
 安装依赖：
 
 ```bash
-python3 -m pip install -r requirements.txt
+uv sync
 ```
 
 本地运行：
 
 ```bash
-PYTHONPATH=src python3 -m ncatbot_assistant
+uv run ncatbot-assistant
 ```
 
 运行测试：
 
 ```bash
-python3 -m unittest discover tests
+uv run python -m unittest discover tests
 ```
 
 语法检查：

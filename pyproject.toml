@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ncatbot-assistant"
+version = "0.1.0"
+description = "NcatBot assistant plugins for QQ resource tasks and LLM fallback chat."
+readme = "readme.md"
+requires-python = ">=3.12"
+license = { text = "MIT" }
+authors = [
+  { name = "zhouyuchong" },
+]
+dependencies = [
+  "ncatbot5>=5.5.6",
+  "jmcomic",
+  "img2pdf",
+  "Pillow",
+  "requests",
+  "aiohttp",
+  "litellm>=1.83.0",
+  "PyYAML",
+]
+
+[project.scripts]
+ncatbot-assistant = "ncatbot_assistant.app:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
