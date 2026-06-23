@@ -53,6 +53,16 @@ tasks:
     daily: 30
 ```
 
+启动时会自动创建运行目录。默认结构：
+
+```text
+data/
+  cache/              # JM 下载缓存
+  image/              # setu / 每日新闻图片临时目录
+  pdf/                # JM 生成 PDF 临时目录
+  drive_bot.sqlite3   # 后台任务队列状态库
+```
+
 ## 依赖
 
 JM 下载并生成 PDF、图片下载、AI 兜底需要安装：

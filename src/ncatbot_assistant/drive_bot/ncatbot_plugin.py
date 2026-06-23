@@ -23,6 +23,7 @@ from ncatbot_assistant.drive_bot.config import (  # noqa: E402
     get_task_estimates,
     load_project_config,
 )
+from ncatbot_assistant.drive_bot.constants import ensure_runtime_directories  # noqa: E402
 from ncatbot_assistant.drive_bot.estimator import estimate_seconds, format_duration  # noqa: E402
 from ncatbot_assistant.drive_bot.intents import (  # noqa: E402
     ImmediateResponse,
@@ -139,6 +140,7 @@ class DriveBotPlugin(NcatBotPlugin):
             }
         )
         project_config = _load_project_config()
+        ensure_runtime_directories()
         llm_context_config = get_llm_context_config(project_config)
         self._conversation_memory = ShortTermConversationMemory(
             enabled=llm_context_config.enabled,
