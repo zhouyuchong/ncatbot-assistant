@@ -111,3 +111,4 @@ PYTHONPYCACHEPREFIX=/tmp/ncatbot-assistant-pycache python3 -m py_compile plugins
 - NcatBot 文档: https://docs.ncatbot.xyz/guide/dto79lp7/
 - JMComic Crawler: https://github.com/hect0x7/JMComic-Crawler-Python
 - setu 参考: https://github.com/Raven95676/astrbot_plugin_setu#
+- neko prompt： https://github.com/H0rseGun/Neko-for-everything/blob/main/neko-v2-r18.txt
