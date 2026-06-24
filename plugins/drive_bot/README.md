@@ -18,7 +18,7 @@ llm:
 
 `fake-api-key` 仅用于离线测试；实际使用时请改为可用的 API Key。
 
-AI 兜底会自动加载 `resources/skills/neko-on-everything/`，把其中的轻量角色扮演 prompt 注入 system message。这个 skill 只提供回复风格约束，不安装依赖，也不写入长期记忆。
+AI 兜底会自动加载 `resources/skills/neko_prompt_r18.md`，把其中的角色 prompt 注入 system message。这个 prompt 只影响 LLM 兜底回复风格，不安装依赖，也不写入长期记忆。
 
 ## LLM 短期上下文
 

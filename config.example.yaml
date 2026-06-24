@@ -39,6 +39,15 @@ llm:
   context:
     enabled: true
     max_turns: 6
+  memory:
+    enabled: true
+    group_enabled: true
+    private_enabled: false
+    summarize_hour: 0
+    timezone: "Asia/Shanghai"
+    max_daily_messages: 200
+    prompt_max_chars: 1500
+    include_commands: false
 
 storage:
   sqlite_path: "data/drive_bot.sqlite3"

@@ -42,6 +42,14 @@ from ncatbot_assistant.drive_bot.reply import ReplyAdapter  # noqa: E402
 from ncatbot_assistant.drive_bot.router import route_message  # noqa: E402
 from ncatbot_assistant.drive_bot.services.jm import search as jm_search  # noqa: E402
 from ncatbot_assistant.drive_bot.storage import TaskStore  # noqa: E402
+from ncatbot_assistant.drive_bot.user_memory import (  # noqa: E402
+    DailyUserMemoryScheduler,
+    UserMemoryConfig,
+    UserMemoryStore,
+    UserMemorySummarizer,
+    build_user_memory_injection,
+    get_user_memory_config,
+)
 from ncatbot.core import registrar
 from ncatbot.event.qq import GroupMessageEvent, PrivateMessageEvent
 from ncatbot.plugin import NcatBotPlugin
@@ -50,14 +58,7 @@ AI_SYSTEM_PROMPT = (
     "你是一个接入 QQ 的轻量助手。请用简洁、自然的中文回复用户，"
     "不要假装自己能上传文件或执行插件命令。"
 )
-NEKO_SKILL_DIR = PROJECT_DIR / "resources" / "skills" / "neko-on-everything"
-NEKO_SKILL_FILES = (
-    "SKILL.md",
-    "references/persona.md",
-    "references/avatars/code.md",
-    "references/avatars/life.md",
-    "references/avatars/math.md",
-)
+NEKO_PROMPT_PATH = PROJECT_DIR / "resources" / "skills" / "neko_prompt_r18.md"
 
 
 def _litellm_openai_model(model: str) -> str:
@@ -108,22 +109,27 @@ def _merge_llm_config(
 
 
 @lru_cache(maxsize=1)
-def _load_neko_skill_prompt() -> str:
-    parts = []
-    for relative_path in NEKO_SKILL_FILES:
-        path = NEKO_SKILL_DIR / relative_path
-        if path.exists():
-            parts.append(path.read_text(encoding="utf-8").strip())
-    if not parts:
+def _load_neko_prompt() -> str:
+    if not NEKO_PROMPT_PATH.exists():
         return ""
-    return "\n\n".join(["Drive Bot roleplay skill:", *parts])
+    return NEKO_PROMPT_PATH.read_text(encoding="utf-8").strip()
 
 
 def _build_ai_system_prompt() -> str:
-    skill_prompt = _load_neko_skill_prompt()
-    if not skill_prompt:
+    neko_prompt = _load_neko_prompt()
+    if not neko_prompt:
         return AI_SYSTEM_PROMPT
-    return f"{AI_SYSTEM_PROMPT}\n\n{skill_prompt}"
+    return f"{AI_SYSTEM_PROMPT}\n\n{neko_prompt}"
+
+
+def _intent_type(intent) -> str:
+    if isinstance(intent, LlmFallbackIntent):
+        return "llm_fallback"
+    if isinstance(intent, QueuedTaskIntent):
+        return "queued_task"
+    if isinstance(intent, ImmediateResponse):
+        return "immediate"
+    return "unknown"
 
 
 class DriveBotPlugin(NcatBotPlugin):
@@ -142,14 +148,18 @@ class DriveBotPlugin(NcatBotPlugin):
         project_config = _load_project_config()
         ensure_runtime_directories()
         llm_context_config = get_llm_context_config(project_config)
+        self._user_memory_config = get_user_memory_config(project_config)
         self._conversation_memory = ShortTermConversationMemory(
             enabled=llm_context_config.enabled,
             max_turns=llm_context_config.max_turns,
         )
         self._task_estimates = get_task_estimates(project_config)
         self._events_by_task_id = {}
-        self._task_store = TaskStore(get_storage_path(project_config))
+        storage_path = get_storage_path(project_config)
+        self._task_store = TaskStore(storage_path)
         self._task_store.initialize()
+        self._user_memory_store = UserMemoryStore(storage_path)
+        self._user_memory_store.initialize()
         recovered = self._task_store.recover_running_tasks()
         if recovered:
             self.logger.warning("已恢复 %s 个中断任务为失败状态", recovered)
@@ -170,11 +180,24 @@ class DriveBotPlugin(NcatBotPlugin):
             notify=self._reply_adapter.notify_task_done,
         )
         self._task_worker.start()
+        self._user_memory_summarizer = UserMemorySummarizer(
+            store=self._user_memory_store,
+            config=self._user_memory_config,
+            chat_text=self._ask_memory_summary,
+        )
+        self._user_memory_scheduler = DailyUserMemoryScheduler(
+            summarize=self._user_memory_summarizer.summarize_due_users,
+            config=self._user_memory_config,
+            logger=self.logger,
+        )
+        self._user_memory_scheduler.start()
         self.logger.info("%s 已加载", self.name)
 
     async def on_close(self) -> None:
         if hasattr(self, "_task_worker"):
             await self._task_worker.stop()
+        if hasattr(self, "_user_memory_scheduler"):
+            await self._user_memory_scheduler.stop()
         self.logger.info("%s 已卸载", self.name)
 
     @registrar.qq.on_group_message()
@@ -227,6 +250,14 @@ class DriveBotPlugin(NcatBotPlugin):
             user_id=user_id,
             jm_search_func=lambda tags: jm_search(tags, self.logger),
         )
+        DriveBotPlugin._record_user_memory_message(
+            self,
+            scope_type=scope_type,
+            group_id=group_id,
+            user_id=user_id,
+            text=text,
+            intent_type=_intent_type(intent),
+        )
         if isinstance(intent, ImmediateResponse):
             await event.reply(text=intent.text)
             return
@@ -271,6 +302,31 @@ class DriveBotPlugin(NcatBotPlugin):
             f"{notify_text}"
         )
 
+    def _record_user_memory_message(
+        self,
+        scope_type: ScopeType,
+        group_id: str | None,
+        user_id: str,
+        text: str,
+        intent_type: str,
+    ) -> None:
+        config = getattr(self, "_user_memory_config", UserMemoryConfig())
+        if not config.enabled or not config.group_enabled or scope_type != ScopeType.GROUP:
+            return
+        store = getattr(self, "_user_memory_store", None)
+        if store is None:
+            return
+        try:
+            store.record_message(
+                scope_type=scope_type,
+                group_id=group_id,
+                user_id=user_id,
+                message_text=text,
+                intent_type=intent_type,
+            )
+        except Exception as exc:
+            self.logger.warning("记录用户记忆失败: %s", exc)
+
     async def _ask_ai(
         self,
         prompt: str,
@@ -285,8 +341,10 @@ class DriveBotPlugin(NcatBotPlugin):
         )
         user_prompt = prompt.strip()
         history = self._conversation_memory.recent_messages(key)
+        user_memory_message = DriveBotPlugin._user_memory_message(self, scope_type, user_id)
         messages = [
             {"role": "system", "content": _build_ai_system_prompt()},
+            *([user_memory_message] if user_memory_message else []),
             *history,
             {"role": "user", "content": user_prompt},
         ]
@@ -336,3 +394,59 @@ class DriveBotPlugin(NcatBotPlugin):
             self._conversation_memory.append_user_message(key, user_prompt)
             self.logger.warning("AI 兜底回复失败: %s", exc)
             return f"AI 暂时不可用喵：{exc}"
+
+    def _user_memory_message(
+        self,
+        scope_type: ScopeType,
+        user_id: str,
+    ) -> dict[str, str] | None:
+        config = getattr(self, "_user_memory_config", UserMemoryConfig())
+        if not config.enabled or not config.group_enabled or scope_type != ScopeType.GROUP:
+            return None
+        store = getattr(self, "_user_memory_store", None)
+        if store is None:
+            return None
+        profile = store.get_or_create_profile(user_id)
+        if not profile.enabled:
+            return None
+        return build_user_memory_injection(profile.user_prompt)
+
+    async def _ask_memory_summary(self, messages: list[dict[str, str]]) -> str:
+        llm_config = _merge_llm_config(
+            _load_project_config(),
+            {
+                "ai_base_url": self.get_config("ai_base_url"),
+                "ai_api_key": self.get_config("ai_api_key"),
+                "ai_model": self.get_config("ai_model"),
+                "ai_temperature": self.get_config("ai_temperature", 0.7),
+                "ai_max_tokens": self.get_config("ai_max_tokens", 800),
+            },
+        )
+        model = llm_config["model"]
+        api_key = llm_config["api_key"]
+        base_url = llm_config["base_url"]
+        max_tokens = int(llm_config["max_tokens"])
+        temperature = float(llm_config["temperature"])
+        try:
+            ai_api = self.api.ai
+        except KeyError:
+            from ncatbot.adapter.ai.api import AIBotAPI
+            from ncatbot.adapter.ai.config import AIConfig
+
+            ai_api = AIBotAPI(
+                AIConfig(
+                    api_key=api_key,
+                    base_url=base_url,
+                    completion_model=_litellm_openai_model(model),
+                    max_tokens=max_tokens,
+                )
+            )
+
+        return await ai_api.chat_text(
+            messages,
+            model=_litellm_openai_model(model),
+            temperature=temperature,
+            max_tokens=max_tokens,
+            api_key=api_key,
+            api_base=base_url,
+        )
