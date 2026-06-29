@@ -316,6 +316,26 @@ class DriveBotConfigTest(TestCase):
 
         self.assertEqual(plugin._user_memory_store.unsummarized_messages("u1", limit=10), [])
 
+    def test_show_user_profile_replies_with_current_user_prompt_without_recording_memory(self):
+        module = load_core_plugin_module()
+        plugin = FakePlugin(module, FakeAiApi(response="should not call ai"))
+        plugin._user_memory_store.update_profile_prompt("u1", "用户偏好简短回答。", 0)
+        event = FakeReplyEvent()
+
+        asyncio.run(
+            module.DriveBotPlugin._handle_message(
+                plugin,
+                event=event,
+                text="/showUserProfile",
+                scope_type=module.ScopeType.GROUP,
+                user_id="u1",
+                group_id="g1",
+            )
+        )
+
+        self.assertEqual(event.replies, [{"text": "当前用户画像 prompt：\n用户偏好简短回答。"}])
+        self.assertEqual(plugin._user_memory_store.unsummarized_messages("u1", limit=10), [])
+
 
 if __name__ == "__main__":
     main()

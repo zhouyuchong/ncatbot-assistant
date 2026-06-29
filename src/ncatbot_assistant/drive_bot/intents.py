@@ -30,6 +30,11 @@ class ImmediateResponse:
 
 
 @dataclass(frozen=True)
+class ShowUserProfileIntent:
+    pass
+
+
+@dataclass(frozen=True)
 class QueuedTaskIntent:
     task_type: TaskType
     scope_type: ScopeType

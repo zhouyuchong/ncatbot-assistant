@@ -4,7 +4,14 @@ import re
 from collections.abc import Callable
 
 from .constants import JM_MATCH, SETU_PATTERN
-from .intents import ImmediateResponse, LlmFallbackIntent, QueuedTaskIntent, ScopeType, TaskType
+from .intents import (
+    ImmediateResponse,
+    LlmFallbackIntent,
+    QueuedTaskIntent,
+    ScopeType,
+    ShowUserProfileIntent,
+    TaskType,
+)
 from .usage import DRIVE_BOT_USAGE, is_usage_question
 
 
@@ -19,6 +26,9 @@ def route_message(
 
     if is_usage_question(text):
         return ImmediateResponse(DRIVE_BOT_USAGE)
+
+    if re.fullmatch(r"/showUserProfile", text, flags=re.IGNORECASE):
+        return ShowUserProfileIntent()
 
     jm_match = re.search(JM_MATCH, text)
     if jm_match:

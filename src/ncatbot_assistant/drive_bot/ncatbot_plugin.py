@@ -30,6 +30,7 @@ from ncatbot_assistant.drive_bot.intents import (  # noqa: E402
     LlmFallbackIntent,
     QueuedTaskIntent,
     ScopeType,
+    ShowUserProfileIntent,
 )
 from ncatbot_assistant.drive_bot.jobs.handlers import TaskHandlers  # noqa: E402
 from ncatbot_assistant.drive_bot.jobs.queue import TaskQueueWorker  # noqa: E402
@@ -127,6 +128,8 @@ def _intent_type(intent) -> str:
         return "llm_fallback"
     if isinstance(intent, QueuedTaskIntent):
         return "queued_task"
+    if isinstance(intent, ShowUserProfileIntent):
+        return "show_user_profile"
     if isinstance(intent, ImmediateResponse):
         return "immediate"
     return "unknown"
@@ -250,6 +253,10 @@ class DriveBotPlugin(NcatBotPlugin):
             user_id=user_id,
             jm_search_func=lambda tags: jm_search(tags, self.logger),
         )
+        if isinstance(intent, ShowUserProfileIntent):
+            await event.reply(text=DriveBotPlugin._build_user_profile_reply(self, user_id))
+            return
+
         DriveBotPlugin._record_user_memory_message(
             self,
             scope_type=scope_type,
@@ -277,6 +284,19 @@ class DriveBotPlugin(NcatBotPlugin):
                     group_id=group_id,
                 )
             )
+
+    def _build_user_profile_reply(self, user_id: str) -> str:
+        config = getattr(self, "_user_memory_config", UserMemoryConfig())
+        if not config.enabled:
+            return "用户画像功能未启用"
+        store = getattr(self, "_user_memory_store", None)
+        if store is None:
+            return "用户画像存储暂时不可用"
+        profile = store.get_or_create_profile(user_id)
+        text = profile.user_prompt.strip()
+        if not text:
+            return "暂无用户画像 prompt"
+        return f"当前用户画像 prompt：\n{text}"
 
     def _enqueue_task(self, intent: QueuedTaskIntent):
         estimated = estimate_seconds(intent.task_type, self._task_estimates)

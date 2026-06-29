@@ -72,6 +72,11 @@ class DriveBotRouterTest(TestCase):
         self.assertIsInstance(intent, LlmFallbackIntent)
         self.assertEqual(intent.prompt, "你是谁")
 
+    def test_show_user_profile_command_becomes_profile_intent(self):
+        intent = route_message("/showUserProfile", scope_type=ScopeType.GROUP, user_id="10001")
+
+        self.assertEqual(type(intent).__name__, "ShowUserProfileIntent")
+
 
 if __name__ == "__main__":
     main()
