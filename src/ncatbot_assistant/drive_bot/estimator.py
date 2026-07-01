@@ -7,6 +7,7 @@ DEFAULT_ESTIMATES = {
     TaskType.JM_DOWNLOAD: 480,
     TaskType.SETU: 45,
     TaskType.DAILY: 30,
+    TaskType.DAILY_AI: 60,
 }
 
 
