@@ -29,6 +29,7 @@ class TaskHandlers:
         setu_get_url: Callable[[list[list[str]], object], Awaitable[tuple[bool, str]]] | None = None,
         setu_download_image: Callable[[str, str, object], Awaitable[bool]] | None = None,
         daily_function: Callable[[], Awaitable[str]] | None = None,
+        daily_ai_function: Callable[[], Awaitable[str]] | None = None,
         image_dir: str = IMAGE_DIR,
         delete_file: Callable[[str, object], None] = default_delete_file,
     ):
@@ -38,11 +39,12 @@ class TaskHandlers:
         self.setu_get_url = setu_get_url or fetch_setu_url
         self.setu_download_image = setu_download_image or download_setu_image
         self.daily_function = daily_function or fetch_daily_image
+        self.daily_ai_function = daily_ai_function
         self.image_dir = image_dir
         self.delete_file = delete_file
 
     def supported_task_types(self) -> tuple[TaskType, ...]:
-        return (TaskType.JM_DOWNLOAD, TaskType.SETU, TaskType.DAILY)
+        return (TaskType.JM_DOWNLOAD, TaskType.SETU, TaskType.DAILY, TaskType.DAILY_AI)
 
     async def handle(self, task: TaskRecord) -> dict:
         if task.task_type == TaskType.JM_DOWNLOAD:
@@ -51,6 +53,8 @@ class TaskHandlers:
             return await self._handle_setu(task)
         if task.task_type == TaskType.DAILY:
             return await self._handle_daily(task)
+        if task.task_type == TaskType.DAILY_AI:
+            return await self._handle_daily_ai(task)
         raise ValueError(f"unsupported task type: {task.task_type}")
 
     async def _handle_jm(self, task: TaskRecord) -> dict:
@@ -81,6 +85,18 @@ class TaskHandlers:
         file_path = await self.daily_function()
         await self.reply.reply_direct_image(task, "请查收", file_path)
         return {"sent_images": 1, "file_path": file_path}
+
+    async def _handle_daily_ai(self, task: TaskRecord) -> dict:
+        if not self.daily_ai_function:
+            raise RuntimeError("未配置 daily_ai_function")
+        try:
+            text = await _maybe_await(self.daily_ai_function())
+            await self.reply.reply_direct_text(task, text)
+            return {"sent_text": 1, "text": text}
+        except Exception as e:
+            error_msg = f"获取每日AI失败：{e}"
+            await self.reply.reply_direct_text(task, error_msg)
+            return {"error": str(e)}
 
 
 async def _maybe_await(value):

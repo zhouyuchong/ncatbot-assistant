@@ -55,6 +55,10 @@ class ReplyAdapter:
         event = self.event_lookup(task)
         await event.reply(text=text, image=image_path)
 
+    async def reply_direct_text(self, task: TaskRecord, text: str) -> None:
+        event = self.event_lookup(task)
+        await event.reply(text=text)
+
     async def notify_task_done(self, task: TaskRecord) -> None:
         event = self.event_lookup(task)
         if task.status == TaskStatus.SUCCEEDED:
@@ -69,4 +73,6 @@ class ReplyAdapter:
             return f"任务 #{task.id} 完成：已上传 {result['uploaded_files']} 个文件。"
         if "sent_images" in result:
             return f"任务 #{task.id} 完成：已发送图片。"
+        if "sent_text" in result:
+            return f"任务 #{task.id} 完成：已发送文本。"
         return f"任务 #{task.id} 完成。"

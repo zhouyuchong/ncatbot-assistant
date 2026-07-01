@@ -73,4 +73,14 @@ def route_message(
             payload={},
         )
 
+    if re.fullmatch(r"/dailyai", text, flags=re.IGNORECASE) or "每日ai" in text.lower():
+        return QueuedTaskIntent(
+            task_type=TaskType.DAILY_AI,
+            scope_type=scope_type,
+            group_id=group_id,
+            user_id=user_id,
+            raw_message=message,
+            payload={},
+        )
+
     return LlmFallbackIntent(prompt=text)
