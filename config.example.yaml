@@ -57,3 +57,6 @@ tasks:
     jm_download: 480
     setu: 45
     daily: 30
+    daily_ai: 60
+  daily_ai:
+    base_path: "/path/to/your/markdown/folder"
