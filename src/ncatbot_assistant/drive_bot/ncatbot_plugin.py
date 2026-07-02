@@ -100,6 +100,8 @@ def _merge_llm_config(
         "model": ("model", "ai_model"),
         "temperature": ("temperature", "ai_temperature"),
         "max_tokens": ("max_tokens", "ai_max_tokens"),
+        "short_conversation_max_tokens": ("short_conversation_max_tokens", "ai_short_conversation_max_tokens"),
+        "long_conversation_max_tokens": ("long_conversation_max_tokens", "ai_long_conversation_max_tokens"),
     }
     merged = {}
     for key, key_aliases in aliases.items():
@@ -390,7 +392,8 @@ class DriveBotPlugin(NcatBotPlugin):
         model = llm_config["model"]
         api_key = llm_config["api_key"]
         base_url = llm_config["base_url"]
-        max_tokens = int(llm_config["max_tokens"])
+        short_max = llm_config.get("short_conversation_max_tokens")
+        max_tokens = int(short_max) if short_max is not None else int(llm_config["max_tokens"])
         temperature = float(llm_config["temperature"])
         try:
             ai_api = self.api.ai
@@ -454,7 +457,8 @@ class DriveBotPlugin(NcatBotPlugin):
         model = llm_config["model"]
         api_key = llm_config["api_key"]
         base_url = llm_config["base_url"]
-        max_tokens = int(llm_config["max_tokens"])
+        long_max = llm_config.get("long_conversation_max_tokens")
+        max_tokens = int(long_max) if long_max is not None else int(llm_config["max_tokens"])
         temperature = float(llm_config["temperature"])
         try:
             ai_api = self.api.ai
