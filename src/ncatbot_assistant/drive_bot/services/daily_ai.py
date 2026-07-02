@@ -39,7 +39,8 @@ async def generate_daily_ai_summary(
         raise FileNotFoundError(f"目录 {folder_path} 中没有找到 md 文件")
 
     all_text = "\n\n".join(md_contents)
-    prompt = f"请总结以下AI论文和信息，输出一个每日的AI技术看点：\n\n{all_text}"
+    today_display = datetime.datetime.now().strftime("%Y年%m月%d日")
+    prompt = f"请总结以下AI论文和信息，输出一篇关于今天的（{today_display}）每日的AI技术看点：\n\n{all_text}"
 
     messages = [{"role": "user", "content": prompt}]
     return await chat_text_func(messages)
