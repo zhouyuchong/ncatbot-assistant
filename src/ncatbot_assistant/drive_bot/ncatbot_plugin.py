@@ -411,6 +411,7 @@ class DriveBotPlugin(NcatBotPlugin):
             )
 
         try:
+            self.logger.info("Calling LLM (short conversation) with model=%s, max_tokens=%s, temperature=%s", model, max_tokens, temperature)
             reply = await ai_api.chat_text(
                 messages,
                 model=_litellm_openai_model(model),
@@ -475,6 +476,7 @@ class DriveBotPlugin(NcatBotPlugin):
                 )
             )
 
+        self.logger.info("Calling LLM (long conversation) with model=%s, max_tokens=%s, temperature=%s", model, max_tokens, temperature)
         return await ai_api.chat_text(
             messages,
             model=_litellm_openai_model(model),
