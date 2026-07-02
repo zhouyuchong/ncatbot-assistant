@@ -8,6 +8,7 @@
 - `/jm 数字ID`：下载指定 album，按章节生成 PDF 并上传。
 - `/setu 标签1 标签2 标签3`：按最多 3 个标签获取图片并上传。
 - `每日新闻`：获取今日摸鱼新闻图片并发送。
+- `/dailyai` 或 `每日ai`：读取本地指定的 Markdown 论文数据，利用 LLM 生成今日 AI 技术看点。
 - `使用方法`、`帮助`、`help`、`/help`：返回插件命令说明。
 - 未命中命令的普通聊天：调用 OpenAI-compatible Chat Completion 兜底回复。
 - LLM 短期上下文：按私聊用户或群聊内 `group_id + user_id` 保存最近 N 轮对话，让连续聊天能承接前文。
@@ -50,6 +51,8 @@ llm:
   model: "deepseek-v4-flash"
   temperature: 0.7
   max_tokens: 800
+  short_conversation_max_tokens: 800
+  long_conversation_max_tokens: 4000
   context:
     enabled: true
     max_turns: 6
@@ -62,6 +65,9 @@ tasks:
     jm_download: 480
     setu: 45
     daily: 30
+    daily_ai: 60
+  daily_ai:
+    base_path: "/path/to/your/markdown/folder"
 ```
 
 `llm.context.max_turns` 表示每个会话保留最近多少轮 user/assistant 对话。该上下文只保存在内存中，重启后会清空；任务状态保存在 SQLite 中。

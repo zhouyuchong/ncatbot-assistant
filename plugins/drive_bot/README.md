@@ -11,6 +11,8 @@ llm:
   model: "deepseek-v4-flash"
   temperature: 0.7
   max_tokens: 800
+  short_conversation_max_tokens: 800
+  long_conversation_max_tokens: 4000
   context:
     enabled: true
     max_turns: 6
@@ -51,6 +53,9 @@ tasks:
     jm_download: 480
     setu: 45
     daily: 30
+    daily_ai: 60
+  daily_ai:
+    base_path: "/path/to/your/markdown/folder"
 ```
 
 启动时会自动创建运行目录。默认结构：
@@ -149,6 +154,22 @@ Bot 会返回本插件的命令说明文本。
 ```
 
 Bot 会将每日新闻任务放入后台队列，完成后发送今日摸鱼新闻图片。
+
+## 每日 AI 看点
+
+发送：
+
+```text
+/dailyai
+```
+
+或
+
+```text
+每日ai
+```
+
+Bot 会读取配置文件 `tasks.daily_ai.base_path` 中指定路径下的今日（`YYYYMMDD`）目录里的所有 `.md` 文件，合并后交由大模型生成今日 AI 论文总结。建议配合 `long_conversation_max_tokens` 参数以防止回复截断。
 
 ## 涩图
 
