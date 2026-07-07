@@ -22,11 +22,11 @@ async def generate_daily_ai_summary(
     if not base_path:
         raise ValueError("配置文件中未配置 tasks.daily_ai.base_path")
 
-    today_str = datetime.datetime.now().strftime("%Y%m%d")
-    folder_path = Path(base_path) / today_str
+    yesterday_str = (datetime.datetime.now() - datetime.timedelta(days=1)).strftime("%Y%m%d")
+    folder_path = Path(base_path) / yesterday_str
 
     if not folder_path.exists() or not folder_path.is_dir():
-        raise FileNotFoundError(f"找不到今天的目录: {folder_path}")
+        raise FileNotFoundError(f"找不到昨天的目录: {folder_path}")
 
     md_contents = []
     for file in folder_path.glob("*.md"):
