@@ -83,8 +83,11 @@ class TaskHandlers:
 
     async def _handle_daily(self, task: TaskRecord) -> dict:
         file_path = await self.daily_function()
+        if not file_path:
+            raise RuntimeError("获取每日图片失败，接口暂时不可用，请稍后再试。")
         await self.reply.reply_direct_image(task, "请查收", file_path)
         return {"sent_images": 1, "file_path": file_path}
+
 
     async def _handle_daily_ai(self, task: TaskRecord) -> dict:
         if not self.daily_ai_function:

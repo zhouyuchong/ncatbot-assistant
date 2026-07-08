@@ -10,6 +10,8 @@ async def fetch_daily_image():
 
 def fetch_daily_image_sync():
     import requests
+    from PIL import Image
+    import io
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -19,20 +21,28 @@ def fetch_daily_image_sync():
         response = requests.get(DAILY_PIC_URL, headers=headers, timeout=10)
         response.raise_for_status()
 
-        content_type = response.headers.get("Content-Type", "")
-        if "jpeg" in content_type or "jpg" in content_type:
-            ext = "jpg"
-        elif "png" in content_type:
-            ext = "png"
-        else:
-            ext = "jpg"
+        # 使用 PIL 读取并压缩图片
+        img = Image.open(io.BytesIO(response.content))
+        
+        # 转换成 RGB，因为 JPEG 不支持 Alpha 通道
+        if img.mode in ("RGBA", "P"):
+            img = img.convert("RGB")
+            
+        # 如果宽度大于 1000px，进行等比例缩放以减小尺寸和体积
+        max_width = 1000
+        if img.width > max_width:
+            ratio = max_width / img.width
+            new_size = (max_width, int(img.height * ratio))
+            img = img.resize(new_size, Image.Resampling.LANCZOS)
 
         os.makedirs(IMAGE_DIR, exist_ok=True)
-        file_path = os.path.join(IMAGE_DIR, f"moyu_image.{ext}")
-        with open(file_path, "wb") as file:
-            file.write(response.content)
+        file_path = os.path.join(IMAGE_DIR, "moyu_image.jpg")
+        
+        # 保存为压缩的 JPEG，设置 quality 和 optimize
+        img.save(file_path, "JPEG", quality=75, optimize=True)
 
         return file_path
 
-    except requests.exceptions.RequestException:
+    except Exception:
         return None
+
