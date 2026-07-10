@@ -9,6 +9,8 @@ DEFAULT_ESTIMATES = {
     TaskType.DAILY: 30,
     TaskType.DAILY_AI: 60,
     TaskType.ANIME_NEWS: 5,
+    TaskType.ANIME_LIST: 15,
+    TaskType.ANIME_FACT: 15,
 }
 
 

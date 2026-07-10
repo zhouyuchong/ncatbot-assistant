@@ -44,6 +44,7 @@ from ncatbot_assistant.drive_bot.router import route_message  # noqa: E402
 from ncatbot_assistant.drive_bot.services.daily import generate_daily_news  # noqa: E402
 from ncatbot_assistant.drive_bot.services.daily_ai import generate_daily_ai_summary  # noqa: E402
 from ncatbot_assistant.drive_bot.services.anime_news import get_anime_news  # noqa: E402
+from ncatbot_assistant.drive_bot.services.anime_facts import get_anime_list, get_anime_facts  # noqa: E402
 from ncatbot_assistant.drive_bot.services.jm import search as jm_search  # noqa: E402
 from ncatbot_assistant.drive_bot.storage import TaskStore  # noqa: E402
 from ncatbot_assistant.drive_bot.user_memory import (  # noqa: E402
@@ -194,12 +195,20 @@ class DriveBotPlugin(NcatBotPlugin):
         async def anime_news_func():
             return await get_anime_news(project_config)
 
+        async def anime_list_func():
+            return await get_anime_list()
+
+        async def anime_fact_func(anime_name: str):
+            return await get_anime_facts(anime_name)
+
         self._task_handlers = TaskHandlers(
             reply=self._reply_adapter,
             logger=self.logger,
             daily_function=daily_func,
             daily_ai_function=daily_ai_func,
             anime_news_function=anime_news_func,
+            anime_list_function=anime_list_func,
+            anime_fact_function=anime_fact_func,
         )
         self._task_worker = TaskQueueWorker(
             store=self._task_store,

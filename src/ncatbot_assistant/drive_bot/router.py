@@ -95,6 +95,37 @@ def route_message(
             payload={},
         )
 
+    if "动漫新闻" in text:
+        return QueuedTaskIntent(
+            task_type=TaskType.ANIME_NEWS,
+            scope_type=scope_type,
+            group_id=group_id,
+            user_id=user_id,
+            raw_message=message,
+            payload={},
+        )
+
+    if "动漫列表" in text:
+        return QueuedTaskIntent(
+            task_type=TaskType.ANIME_LIST,
+            scope_type=scope_type,
+            group_id=group_id,
+            user_id=user_id,
+            raw_message=message,
+            payload={},
+        )
+
+    anime_fact_match = re.search(r"动漫事实\s*(.+)", text)
+    if anime_fact_match:
+        return QueuedTaskIntent(
+            task_type=TaskType.ANIME_FACT,
+            scope_type=scope_type,
+            group_id=group_id,
+            user_id=user_id,
+            raw_message=message,
+            payload={"anime_name": anime_fact_match.group(1).strip()},
+        )
+
     return LlmFallbackIntent(prompt=text)
 
 
