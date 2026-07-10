@@ -13,7 +13,7 @@ JM_MATCH = r"/jm\s+(.+)"
 JMCOMIC_PATTERN = r"^/jm\s(\d+)$"
 SETU_PATTERN = r"/setu(?:\s+(.*))?$"
 
-DAILY_PIC_URL = "https://api.52vmy.cn/api/wl/moyu"
+CURRENTS_LATEST_NEWS_URL = "https://api.currentsapi.services/v1/latest-news"
 TARGET_GROUP_IDS = [1019587647]
 DAILY_MESSAGE = "早上好！新的一天开始了，祝大家工作顺利，心情愉快！"
 
