@@ -16,8 +16,6 @@ class TaskType(str, Enum):
     DAILY = "daily"
     DAILY_AI = "daily_ai"
     ANIME_NEWS = "anime_news"
-    ANIME_LIST = "anime_list"
-    ANIME_FACT = "anime_fact"
 
 
 class TaskStatus(str, Enum):
