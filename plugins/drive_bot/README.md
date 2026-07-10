@@ -2,7 +2,7 @@
 
 Drive Bot 支持在 QQ 群聊和私聊中处理资源搜索、文件上传和每日新闻。
 
-当消息没有命中下方已有关键词/命令时，Bot 会使用 OpenAI-compatible Chat Completion 做兜底回复。推荐复制 `config.example.yaml` 为 `config.yaml` 并填写顶层 `llm` 配置：
+当消息没有命中下方已有命令或整句别名时，Bot 会使用 OpenAI-compatible Chat Completion 做兜底回复。推荐复制 `config.example.yaml` 为 `config.yaml` 并填写顶层 `llm` 配置：
 
 ```yaml
 llm:
@@ -105,7 +105,7 @@ help
 /help
 ```
 
-Bot 会返回本插件的命令说明文本。
+Bot 会返回本插件的命令说明文本。正式入口统一使用 `/命令`；中文短语只作为整句别名兼容，避免普通聊天里提到关键词时误触发任务。
 
 群聊中需要 @ Bot 才会处理消息；私聊中会直接处理收到的消息。
 
@@ -154,8 +154,10 @@ Bot 会返回本插件的命令说明文本。
 发送：
 
 ```text
-每日新闻
+/news
 ```
+
+也兼容整句 `每日新闻`。
 
 Bot 会将每日新闻任务放入后台队列，从 Currents 获取最新新闻，并利用已配置的 LLM 生成中文综合摘要和 5～10 条重点新闻（含原文链接）。
 
@@ -179,13 +181,21 @@ LLM 暂时不可用时，Bot 会降级发送原始标题、描述和链接；Cur
 /dailyai
 ```
 
-或
-
-```text
-每日ai
-```
+也兼容整句 `每日ai`。
 
 Bot 会读取配置文件 `tasks.daily_ai.base_path` 中指定路径下的今日（`YYYYMMDD`）目录里的所有 `.md` 文件，合并后交由大模型生成今日 AI 论文总结。建议配合 `long_conversation_max_tokens` 参数以防止回复截断。
+
+## 动漫新闻
+
+发送：
+
+```text
+/anime-news
+```
+
+也兼容整句 `动漫新闻`。
+
+Bot 会读取 `tasks.anime_news.file_path` 中配置的本地文件并发送内容。
 
 ## 涩图
 
@@ -196,3 +206,13 @@ Bot 会读取配置文件 `tasks.daily_ai.base_path` 中指定路径下的今日
 ```
 
 最多支持 3 个标签。任务会进入后台队列，结果会下载后上传为文件。
+
+## 用户画像
+
+发送：
+
+```text
+/profile
+```
+
+Bot 会返回当前用户画像 prompt。旧命令 `/showUserProfile` 仍然可用。

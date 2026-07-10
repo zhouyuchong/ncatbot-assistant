@@ -50,6 +50,31 @@ class DriveBotRouterTest(TestCase):
         self.assertEqual(intent.task_type, TaskType.DAILY)
         self.assertEqual(intent.payload, {})
 
+    def test_slash_news_message_becomes_queued_task(self):
+        intent = route_message("/news", scope_type=ScopeType.GROUP, user_id="u", group_id="g")
+
+        self.assertIsInstance(intent, QueuedTaskIntent)
+        self.assertEqual(intent.task_type, TaskType.DAILY)
+        self.assertEqual(intent.payload, {})
+
+    def test_daily_news_alias_requires_exact_phrase(self):
+        intent = route_message("我想讨论每日新闻触发方式", scope_type=ScopeType.PRIVATE, user_id="u")
+
+        self.assertIsInstance(intent, LlmFallbackIntent)
+        self.assertEqual(intent.prompt, "我想讨论每日新闻触发方式")
+
+    def test_slash_anime_news_message_becomes_queued_task(self):
+        intent = route_message("/anime-news", scope_type=ScopeType.GROUP, user_id="u", group_id="g")
+
+        self.assertIsInstance(intent, QueuedTaskIntent)
+        self.assertEqual(intent.task_type, TaskType.ANIME_NEWS)
+        self.assertEqual(intent.payload, {})
+
+    def test_slash_profile_alias_becomes_profile_intent(self):
+        intent = route_message("/profile", scope_type=ScopeType.GROUP, user_id="10001")
+
+        self.assertEqual(type(intent).__name__, "ShowUserProfileIntent")
+
     def test_jm_search_remains_immediate(self):
         intent = route_message(
             "/jm 原神",
@@ -64,7 +89,10 @@ class DriveBotRouterTest(TestCase):
     def test_usage_remains_immediate(self):
         intent = route_message("帮助", scope_type=ScopeType.PRIVATE, user_id="10001")
 
-        self.assertIn("Drive Bot 使用方法", intent.text)
+        self.assertIn("Drive Bot 指南", intent.text)
+        self.assertIn("/news", intent.text)
+        self.assertIn("/anime-news", intent.text)
+        self.assertIn("/profile", intent.text)
 
     def test_unknown_message_becomes_llm_fallback(self):
         intent = route_message("你是谁", scope_type=ScopeType.PRIVATE, user_id="10001")

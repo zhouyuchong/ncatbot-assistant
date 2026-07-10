@@ -110,6 +110,8 @@ def _merge_llm_config(
         value = _first_config_value(llm_config, key_aliases)
         if value is None:
             value = _first_config_value(default_config, (key, *key_aliases))
+        if value is None and key in {"short_conversation_max_tokens", "long_conversation_max_tokens"}:
+            continue
         merged[key] = value
     return merged
 

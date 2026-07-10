@@ -7,8 +7,10 @@
 - `/jm 关键词`：搜索 JMComic album。
 - `/jm 数字ID`：下载指定 album，按章节生成 PDF 并上传。
 - `/setu 标签1 标签2 标签3`：按最多 3 个标签获取图片并上传。
-- `每日新闻`：获取 Currents 最新新闻，利用 LLM 生成中文摘要并发送。
-- `/dailyai` 或 `每日ai`：读取本地指定的 Markdown 论文数据，利用 LLM 生成今日 AI 技术看点。
+- `/news`：获取 Currents 最新新闻，利用 LLM 生成中文摘要并发送；兼容整句 `每日新闻`。
+- `/dailyai`：读取本地指定的 Markdown 论文数据，利用 LLM 生成今日 AI 技术看点；兼容整句 `每日ai`。
+- `/anime-news`：读取已配置的动漫新闻文件并发送；兼容整句 `动漫新闻`。
+- `/profile`：查看当前用户画像 prompt。
 - `使用方法`、`帮助`、`help`、`/help`：返回插件命令说明。
 - 未命中命令的普通聊天：调用 OpenAI-compatible Chat Completion 兜底回复。
 - LLM 短期上下文：按私聊用户或群聊内 `group_id + user_id` 保存最近 N 轮对话，让连续聊天能承接前文。
