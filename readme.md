@@ -7,7 +7,7 @@
 - `/jm 关键词`：搜索 JMComic album。
 - `/jm 数字ID`：下载指定 album，按章节生成 PDF 并上传。
 - `/setu 标签1 标签2 标签3`：按最多 3 个标签获取图片并上传。
-- `每日新闻`：获取今日摸鱼新闻图片并发送。
+- `每日新闻`：获取 Currents 最新新闻，利用 LLM 生成中文摘要并发送。
 - `/dailyai` 或 `每日ai`：读取本地指定的 Markdown 论文数据，利用 LLM 生成今日 AI 技术看点。
 - `使用方法`、`帮助`、`help`、`/help`：返回插件命令说明。
 - 未命中命令的普通聊天：调用 OpenAI-compatible Chat Completion 兜底回复。
@@ -66,18 +66,24 @@ tasks:
     setu: 45
     daily: 30
     daily_ai: 60
+  daily_news:
+    api_key: "your-currents-api-key"
+    language: "en"
+    max_items: 10
   daily_ai:
     base_path: "/path/to/your/markdown/folder"
 ```
 
 `llm.context.max_turns` 表示每个会话保留最近多少轮 user/assistant 对话。该上下文只保存在内存中，重启后会清空；任务状态保存在 SQLite 中。
 
+`tasks.daily_news.api_key` 必须填写有效的 Currents API Key。`language` 默认使用英文新闻源，`max_items` 控制交给 LLM 归纳的新闻数量，最大为 `10`。LLM 暂时不可用时，Bot 会降级发送原始标题、描述和链接。
+
 运行时目录会在启动时自动创建，默认都位于 `data/` 下：
 
 ```text
 data/
   cache/              # JM 下载缓存
-  image/              # setu / 每日新闻图片临时目录
+  image/              # setu 图片临时目录
   pdf/                # JM 生成 PDF 临时目录
   drive_bot.sqlite3   # 后台任务队列状态库
 ```

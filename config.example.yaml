@@ -60,5 +60,9 @@ tasks:
     setu: 45
     daily: 30
     daily_ai: 60
+  daily_news:
+    api_key: "your-currents-api-key"
+    language: "en"
+    max_items: 10
   daily_ai:
     base_path: "/path/to/your/markdown/folder"

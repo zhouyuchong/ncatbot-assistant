@@ -164,6 +164,16 @@ class DriveBotConfigTest(TestCase):
 
         self.assertIn("  context:\n    enabled: true\n    max_turns: 6", config_text)
 
+    def test_config_example_documents_currents_daily_news(self):
+        config_text = (ROOT / "config.example.yaml").read_text(encoding="utf-8")
+
+        self.assertIn(
+            '  daily_news:\n    api_key: "your-currents-api-key"',
+            config_text,
+        )
+        self.assertIn('    language: "en"', config_text)
+        self.assertIn("    max_items: 10", config_text)
+
     def test_ai_system_prompt_includes_single_neko_prompt_file(self):
         module = load_core_plugin_module()
         module._load_neko_prompt.cache_clear()

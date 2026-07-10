@@ -54,6 +54,10 @@ tasks:
     setu: 45
     daily: 30
     daily_ai: 60
+  daily_news:
+    api_key: "your-currents-api-key"
+    language: "en"
+    max_items: 10
   daily_ai:
     base_path: "/path/to/your/markdown/folder"
 ```
@@ -63,7 +67,7 @@ tasks:
 ```text
 data/
   cache/              # JM 下载缓存
-  image/              # setu / 每日新闻图片临时目录
+  image/              # setu 图片临时目录
   pdf/                # JM 生成 PDF 临时目录
   drive_bot.sqlite3   # 后台任务队列状态库
 ```
@@ -153,7 +157,19 @@ Bot 会返回本插件的命令说明文本。
 每日新闻
 ```
 
-Bot 会将每日新闻任务放入后台队列，完成后发送今日摸鱼新闻图片。
+Bot 会将每日新闻任务放入后台队列，从 Currents 获取最新新闻，并利用已配置的 LLM 生成中文综合摘要和 5～10 条重点新闻（含原文链接）。
+
+请在 `config.yaml` 中配置 Currents API Key：
+
+```yaml
+tasks:
+  daily_news:
+    api_key: "your-currents-api-key"
+    language: "en"
+    max_items: 10
+```
+
+LLM 暂时不可用时，Bot 会降级发送原始标题、描述和链接；Currents API Key 缺失或接口不可用时，任务会返回明确错误。
 
 ## 每日 AI 看点
 
