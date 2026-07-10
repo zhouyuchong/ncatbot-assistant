@@ -95,12 +95,12 @@ class DriveBotHandlersTest(IsolatedAsyncioTestCase):
         self.assertEqual(result["uploaded_files"], 1)
         self.assertEqual(file_api.private_uploads[0][0], "u2")
 
-    async def test_daily_handler_replies_with_direct_image(self):
+    async def test_daily_handler_replies_with_direct_text(self):
         event = FakeEvent()
         reply = ReplyAdapter(file_api=FakeFileApi(), event_lookup=lambda _task: event)
 
         async def daily():
-            return "/tmp/daily.png"
+            return "今日新闻摘要"
 
         handlers = TaskHandlers(reply=reply, daily_function=daily)
         task = TaskRecord(
@@ -116,8 +116,8 @@ class DriveBotHandlersTest(IsolatedAsyncioTestCase):
 
         result = await handlers.handle(task)
 
-        self.assertEqual(result["sent_images"], 1)
-        self.assertEqual(event.replies[0], {"text": "请查收", "image": "/tmp/daily.png"})
+        self.assertEqual(result, {"sent_text": 1, "text": "今日新闻摘要"})
+        self.assertEqual(event.replies[0], {"text": "今日新闻摘要", "image": None})
 
     async def test_group_task_done_reply_does_not_include_manual_cq_at(self):
         event = FakeEvent()

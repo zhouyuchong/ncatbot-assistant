@@ -41,6 +41,7 @@ from ncatbot_assistant.drive_bot.llm_context import (  # noqa: E402
 )
 from ncatbot_assistant.drive_bot.reply import ReplyAdapter  # noqa: E402
 from ncatbot_assistant.drive_bot.router import route_message  # noqa: E402
+from ncatbot_assistant.drive_bot.services.daily import generate_daily_news  # noqa: E402
 from ncatbot_assistant.drive_bot.services.daily_ai import generate_daily_ai_summary  # noqa: E402
 from ncatbot_assistant.drive_bot.services.jm import search as jm_search  # noqa: E402
 from ncatbot_assistant.drive_bot.storage import TaskStore  # noqa: E402
@@ -174,6 +175,13 @@ class DriveBotPlugin(NcatBotPlugin):
             event_lookup=lambda task: self._events_by_task_id[task.id],
         )
 
+        async def daily_func():
+            return await generate_daily_news(
+                project_config=project_config,
+                chat_text_func=self._ask_memory_summary,
+                logger=self.logger,
+            )
+
         async def daily_ai_func():
             return await generate_daily_ai_summary(
                 project_config=project_config,
@@ -183,6 +191,7 @@ class DriveBotPlugin(NcatBotPlugin):
         self._task_handlers = TaskHandlers(
             reply=self._reply_adapter,
             logger=self.logger,
+            daily_function=daily_func,
             daily_ai_function=daily_ai_func,
         )
         self._task_worker = TaskQueueWorker(

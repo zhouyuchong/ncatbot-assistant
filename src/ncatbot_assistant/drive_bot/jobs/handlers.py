@@ -5,7 +5,6 @@ from collections.abc import Awaitable, Callable
 
 from ncatbot_assistant.drive_bot.intents import TaskRecord, TaskType
 from ncatbot_assistant.drive_bot.reply import ReplyAdapter, delete_file as default_delete_file
-from ncatbot_assistant.drive_bot.services.daily import fetch_daily_image
 from ncatbot_assistant.drive_bot.services.jm import download_album
 from ncatbot_assistant.drive_bot.services.setu import download as download_setu_image
 from ncatbot_assistant.drive_bot.services.setu import fetch_url as fetch_setu_url
@@ -38,7 +37,7 @@ class TaskHandlers:
         self.jm_download = jm_download or download_album
         self.setu_get_url = setu_get_url or fetch_setu_url
         self.setu_download_image = setu_download_image or download_setu_image
-        self.daily_function = daily_function or fetch_daily_image
+        self.daily_function = daily_function
         self.daily_ai_function = daily_ai_function
         self.image_dir = image_dir
         self.delete_file = delete_file
@@ -82,11 +81,13 @@ class TaskHandlers:
         return {"uploaded_files": 1, "files": files}
 
     async def _handle_daily(self, task: TaskRecord) -> dict:
-        file_path = await self.daily_function()
-        if not file_path:
-            raise RuntimeError("获取每日图片失败，接口暂时不可用，请稍后再试。")
-        await self.reply.reply_direct_image(task, "请查收", file_path)
-        return {"sent_images": 1, "file_path": file_path}
+        if not self.daily_function:
+            raise RuntimeError("未配置 daily_function")
+        text = await _maybe_await(self.daily_function())
+        if not text:
+            raise RuntimeError("获取每日新闻失败，接口暂时不可用，请稍后再试。")
+        await self.reply.reply_direct_text(task, text)
+        return {"sent_text": 1, "text": text}
 
 
     async def _handle_daily_ai(self, task: TaskRecord) -> dict:
