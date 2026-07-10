@@ -66,3 +66,5 @@ tasks:
     max_items: 10
   daily_ai:
     base_path: "/path/to/your/markdown/folder"
+  anime_news:
+    file_path: "/path/to/your/anime/news.md"

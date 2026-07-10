@@ -83,4 +83,14 @@ def route_message(
             payload={},
         )
 
+    if "动漫新闻" in text:
+        return QueuedTaskIntent(
+            task_type=TaskType.ANIME_NEWS,
+            scope_type=scope_type,
+            group_id=group_id,
+            user_id=user_id,
+            raw_message=message,
+            payload={},
+        )
+
     return LlmFallbackIntent(prompt=text)
