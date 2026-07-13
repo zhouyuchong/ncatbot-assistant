@@ -46,7 +46,7 @@ async def generate_trending_paper_summary(
             conn.row_factory = sqlite3.Row
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT title, update_time FROM trending_papers ORDER BY hotness DESC, update_time DESC LIMIT 10"
+                "SELECT title, update_time FROM trending_papers ORDER BY hotness DESC, update_time DESC LIMIT 50"
             )
             papers = cursor.fetchall()
     except Exception as e:
@@ -63,6 +63,9 @@ async def generate_trending_paper_summary(
     md_contents = []
     
     for row in papers:
+        if len(md_contents) >= 10:
+            break
+
         title = row["title"]
         stem = safe_paper_filename(title, extension="")
         
