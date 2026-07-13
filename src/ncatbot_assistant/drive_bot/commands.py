@@ -82,6 +82,16 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
         slash_aliases=("/profile", "/showUserProfile"),
         category="other",
     ),
+    CommandSpec(
+        name="trending",
+        title="热门论文",
+        usage="/trending",
+        description="获取近期热门 AI 论文的摘要总结",
+        slash_aliases=("/trending",),
+        text_aliases=("热门论文", "trending"),
+        task_type=TaskType.TRENDING_PAPER,
+        category="news",
+    ),
 )
 
 

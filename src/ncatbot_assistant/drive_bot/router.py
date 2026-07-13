@@ -95,6 +95,16 @@ def route_message(
             payload={},
         )
 
+    if _matches_simple_command(text, "trending"):
+        return QueuedTaskIntent(
+            task_type=TaskType.TRENDING_PAPER,
+            scope_type=scope_type,
+            group_id=group_id,
+            user_id=user_id,
+            raw_message=message,
+            payload={},
+        )
+
     return LlmFallbackIntent(prompt=text)
 
 

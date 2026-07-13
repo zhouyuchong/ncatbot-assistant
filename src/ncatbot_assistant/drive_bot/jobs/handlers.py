@@ -30,6 +30,7 @@ class TaskHandlers:
         daily_function: Callable[[], Awaitable[str]] | None = None,
         daily_ai_function: Callable[[], Awaitable[str]] | None = None,
         anime_news_function: Callable[[], Awaitable[str]] | None = None,
+        trending_paper_function: Callable[[], Awaitable[str]] | None = None,
         image_dir: str = IMAGE_DIR,
         delete_file: Callable[[str, object], None] = default_delete_file,
     ):
@@ -41,11 +42,12 @@ class TaskHandlers:
         self.daily_function = daily_function
         self.daily_ai_function = daily_ai_function
         self.anime_news_function = anime_news_function
+        self.trending_paper_function = trending_paper_function
         self.image_dir = image_dir
         self.delete_file = delete_file
 
     def supported_task_types(self) -> tuple[TaskType, ...]:
-        return (TaskType.JM_DOWNLOAD, TaskType.SETU, TaskType.DAILY, TaskType.DAILY_AI, TaskType.ANIME_NEWS)
+        return (TaskType.JM_DOWNLOAD, TaskType.SETU, TaskType.DAILY, TaskType.DAILY_AI, TaskType.ANIME_NEWS, TaskType.TRENDING_PAPER)
 
     async def handle(self, task: TaskRecord) -> dict:
         if task.task_type == TaskType.JM_DOWNLOAD:
@@ -58,6 +60,8 @@ class TaskHandlers:
             return await self._handle_daily_ai(task)
         if task.task_type == TaskType.ANIME_NEWS:
             return await self._handle_anime_news(task)
+        if task.task_type == TaskType.TRENDING_PAPER:
+            return await self._handle_trending_paper(task)
         raise ValueError(f"unsupported task type: {task.task_type}")
 
     async def _handle_jm(self, task: TaskRecord) -> dict:
@@ -115,6 +119,18 @@ class TaskHandlers:
             return {"sent_text": 1, "text": text}
         except Exception as e:
             error_msg = f"获取动漫新闻失败：{e}"
+            await self.reply.reply_direct_text(task, error_msg)
+            return {"error": str(e)}
+
+    async def _handle_trending_paper(self, task: TaskRecord) -> dict:
+        if not self.trending_paper_function:
+            raise RuntimeError("未配置 trending_paper_function")
+        try:
+            text = await _maybe_await(self.trending_paper_function())
+            await self.reply.reply_direct_text(task, text)
+            return {"sent_text": 1, "text": text}
+        except Exception as e:
+            error_msg = f"获取热门论文总结失败：{e}"
             await self.reply.reply_direct_text(task, error_msg)
             return {"error": str(e)}
 

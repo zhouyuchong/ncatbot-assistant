@@ -60,6 +60,7 @@ tasks:
     setu: 45
     daily: 30
     daily_ai: 60
+    trending_paper: 60
   daily_news:
     api_key: "your-currents-api-key"
     language: "en"
@@ -68,3 +69,6 @@ tasks:
     base_path: "/path/to/your/markdown/folder"
   anime_news:
     file_path: "/path/to/your/anime/news.md"
+  trending_paper:
+    db_path: "/Users/damonzzz/codes/damon/tech_crawler/data/papers/tech_crawler.db"
+    base_path: "/Users/damonzzz/codes/damon/tech_crawler/data/papers/trending"
