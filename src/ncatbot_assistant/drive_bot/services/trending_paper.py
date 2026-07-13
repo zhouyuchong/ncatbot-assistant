@@ -57,23 +57,10 @@ async def generate_trending_paper_summary(
     
     for row in papers:
         title = row["title"]
-        update_time_str = row["update_time"]
-        
-        try:
-            date_part = update_time_str.split()[0]
-            d = datetime.date.fromisoformat(date_part)
-            year, week, _ = d.isocalendar()
-            week_slug = f"{year}-W{week:02d}"
-        except Exception:
-            continue
-            
-        week_dir = base_dir / week_slug
-        if not week_dir.exists():
-            continue
-            
         stem = safe_paper_filename(title, extension="")
+        
         matched_file = None
-        for file_path in week_dir.glob(f"{stem}*.md"):
+        for file_path in base_dir.rglob(f"{stem}*.md"):
             matched_file = file_path
             break
             
