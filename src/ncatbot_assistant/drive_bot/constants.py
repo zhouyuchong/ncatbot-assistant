@@ -10,6 +10,7 @@ PDF_DIR = str(ROOT_DIR / "data" / "pdf")
 IMAGE_DIR = str(ROOT_DIR / "data" / "image")
 
 CURRENTS_LATEST_NEWS_URL = "https://api.currentsapi.services/v1/latest-news"
+QQ_NEWS_HOT_URL = "https://r.inews.qq.com/gw/event/hot_ranking_list"
 TARGET_GROUP_IDS = [1019587647]
 DAILY_MESSAGE = "早上好！新的一天开始了，祝大家工作顺利，心情愉快！"
 

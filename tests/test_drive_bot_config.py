@@ -164,11 +164,11 @@ class DriveBotConfigTest(TestCase):
 
         self.assertIn("  context:\n    enabled: true\n    max_turns: 6", config_text)
 
-    def test_config_example_documents_currents_daily_news(self):
+    def test_config_example_documents_default_daily_news_provider(self):
         config_text = (ROOT / "config.example.yaml").read_text(encoding="utf-8")
 
         self.assertIn(
-            '  daily_news:\n    api_key: "your-currents-api-key"',
+            '  daily_news:\n    provider: "qq-news"',
             config_text,
         )
         self.assertIn('    language: "en"', config_text)

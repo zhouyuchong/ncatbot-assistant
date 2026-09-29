@@ -55,7 +55,8 @@ tasks:
     daily: 30
     daily_ai: 60
   daily_news:
-    api_key: "your-currents-api-key"
+    provider: "qq-news"
+    api_key: "" # 仅 currents 需要
     language: "en"
     max_items: 10
   daily_ai:
@@ -159,19 +160,20 @@ Bot 会返回本插件的命令说明文本。正式入口统一使用 `/命令`
 
 也兼容整句 `每日新闻`。
 
-Bot 会将每日新闻任务放入后台队列，从 Currents 获取最新新闻，并利用已配置的 LLM 生成中文综合摘要和 5～10 条重点新闻（含原文链接）。
+Bot 会将每日新闻任务放入后台队列，默认从腾讯新闻热点榜获取新闻，并利用已配置的 LLM 生成中文综合摘要和最多 10 条重点新闻（含原文链接）。实现参考 DailyHotApi 的 `qq-news` 路由，直接请求腾讯上游，无需部署 DailyHotApi 或配置 API Key。榜单说明和重复文章会被过滤。
 
-请在 `config.yaml` 中配置 Currents API Key：
+可在 `config.yaml` 中配置新闻源和条数：
 
 ```yaml
 tasks:
   daily_news:
-    api_key: "your-currents-api-key"
-    language: "en"
+    provider: "qq-news"
     max_items: 10
 ```
 
-LLM 暂时不可用时，Bot 会降级发送原始标题、描述和链接；Currents API Key 缺失或接口不可用时，任务会返回明确错误。
+`max_items` 范围为 `1～10`。LLM 失败或返回空摘要时，Bot 会降级发送原始标题、描述和链接；接口不可用或数据为空时，任务会返回明确错误。
+
+旧配置未填写 `provider` 时也使用腾讯新闻源。若需保留 Currents，请设置 `provider: currents`，并配置 `api_key` 和 `language: en`。只有 Currents 需要 API Key，`language` 也仅对该源生效。
 
 ## 每日 AI 看点
 

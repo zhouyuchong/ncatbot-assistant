@@ -62,8 +62,9 @@ tasks:
     daily_ai: 60
     trending_paper: 60
   daily_news:
-    api_key: "your-currents-api-key"
-    language: "en"
+    provider: "qq-news" # 默认腾讯新闻热点榜，无需 API Key；可选 currents
+    api_key: "" # 仅 provider: currents 时必填
+    language: "en" # 仅 Currents 使用
     max_items: 10
   daily_ai:
     base_path: "/path/to/your/markdown/folder"

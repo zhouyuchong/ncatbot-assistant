@@ -2,9 +2,10 @@ from unittest import IsolatedAsyncioTestCase, TestCase, main
 from unittest.mock import Mock, patch
 
 import tests.bootstrap  # noqa: F401
-from ncatbot_assistant.drive_bot.constants import CURRENTS_LATEST_NEWS_URL
+from ncatbot_assistant.drive_bot.constants import CURRENTS_LATEST_NEWS_URL, QQ_NEWS_HOT_URL
 from ncatbot_assistant.drive_bot.services.daily import (
     fetch_latest_news_sync,
+    fetch_qq_news_sync,
     generate_daily_news,
 )
 
@@ -42,6 +43,7 @@ class DailyNewsServiceTest(IsolatedAsyncioTestCase):
             {
                 "tasks": {
                     "daily_news": {
+                        "provider": "currents",
                         "api_key": "secret-key",
                         "language": "en",
                     }
@@ -70,7 +72,7 @@ class DailyNewsServiceTest(IsolatedAsyncioTestCase):
             return "摘要"
 
         await generate_daily_news(
-            {"tasks": {"daily_news": {"api_key": "secret", "max_items": 99}}},
+            {"tasks": {"daily_news": {"provider": "currents", "api_key": "secret", "max_items": 99}}},
             chat,
             fetch_func=lambda **_kwargs: payload,
         )
@@ -83,7 +85,10 @@ class DailyNewsServiceTest(IsolatedAsyncioTestCase):
             return "unused"
 
         with self.assertRaisesRegex(ValueError, "tasks.daily_news.api_key"):
-            await generate_daily_news({}, chat, fetch_func=lambda **_kwargs: {})
+            await generate_daily_news(
+                {"tasks": {"daily_news": {"provider": "currents"}}},
+                chat, fetch_func=lambda **_kwargs: {},
+            )
 
     async def test_rejects_non_ok_status(self):
         async def chat(_messages):
@@ -91,7 +96,7 @@ class DailyNewsServiceTest(IsolatedAsyncioTestCase):
 
         with self.assertRaisesRegex(RuntimeError, "Currents"):
             await generate_daily_news(
-                {"tasks": {"daily_news": {"api_key": "secret"}}},
+                {"tasks": {"daily_news": {"provider": "currents", "api_key": "secret"}}},
                 chat,
                 fetch_func=lambda **_kwargs: {"status": "error", "news": []},
             )
@@ -102,7 +107,7 @@ class DailyNewsServiceTest(IsolatedAsyncioTestCase):
 
         with self.assertRaisesRegex(RuntimeError, "有效新闻"):
             await generate_daily_news(
-                {"tasks": {"daily_news": {"api_key": "secret"}}},
+                {"tasks": {"daily_news": {"provider": "currents", "api_key": "secret"}}},
                 chat,
                 fetch_func=lambda **_kwargs: {
                     "status": "ok",
@@ -115,7 +120,7 @@ class DailyNewsServiceTest(IsolatedAsyncioTestCase):
             raise RuntimeError("LLM secret failure")
 
         result = await generate_daily_news(
-            {"tasks": {"daily_news": {"api_key": "secret"}}},
+            {"tasks": {"daily_news": {"provider": "currents", "api_key": "secret"}}},
             failing_chat,
             fetch_func=lambda **_kwargs: {"status": "ok", "news": [news_item()]},
         )
@@ -127,7 +132,73 @@ class DailyNewsServiceTest(IsolatedAsyncioTestCase):
         self.assertNotIn("LLM secret failure", result)
 
 
+class QQNewsServiceTest(IsolatedAsyncioTestCase):
+    async def test_default_source_needs_no_key_and_filters_ranking_metadata(self):
+        prompts = []
+
+        async def chat(messages):
+            prompts.append(messages[0]["content"])
+            return "今日摘要"
+
+        async def fetch():
+            return {"ret": 0, "idlist": [{"newslist": [
+                {"id": "TIP123", "title": "榜单说明", "articletype": "560"},
+                None, {"title": "缺少ID"},
+                {"id": "A123", "title": " 新闻标题 ", "abstract": "新闻简介", "source": "来源"},
+                {"id": "A123", "title": "重复文章"},
+            ]}]}
+
+        self.assertEqual(await generate_daily_news({}, chat, fetch_func=fetch), "今日摘要")
+        self.assertIn("新闻标题", prompts[0])
+        self.assertIn("新闻简介", prompts[0])
+        self.assertIn("https://new.qq.com/rain/a/A123", prompts[0])
+        for invalid in ("榜单说明", "缺少ID", "重复文章"):
+            self.assertNotIn(invalid, prompts[0])
+
+    async def test_empty_summary_falls_back_and_retains_first_real_article(self):
+        async def chat(_messages):
+            return "  "
+
+        result = await generate_daily_news({}, chat, fetch_func=lambda: {
+            "ret": 0, "idlist": [{"newslist": [{"id": "A1", "title": "首条新闻"}]}],
+        })
+        self.assertIn("首条新闻", result)
+        self.assertIn("AI 摘要暂不可用", result)
+
+    async def test_bad_payloads_fail_before_llm_call(self):
+        async def chat(_messages):
+            self.fail("invalid data must not reach LLM")
+
+        for payload in (None, {}, {"ret": -1}, {"ret": 0, "idlist": []},
+                        {"ret": 0, "idlist": [None]},
+                        {"ret": 0, "idlist": [{"newslist": {}}]},
+                        {"ret": 0, "idlist": [{"newslist": []}]}):
+            with self.subTest(payload=payload), self.assertRaisesRegex(RuntimeError, "腾讯新闻"):
+                await generate_daily_news({}, chat, fetch_func=lambda: payload)
+
+    async def test_unknown_provider_fails(self):
+        with self.assertRaisesRegex(ValueError, "provider"):
+            await generate_daily_news({"tasks": {"daily_news": {"provider": "invalid"}}}, Mock())
+
+
 class DailyNewsHttpTest(TestCase):
+    @patch("requests.get")
+    def test_qq_request_and_invalid_json(self, get: Mock):
+        response = get.return_value
+        response.json.return_value = {"ret": 0, "idlist": []}
+        self.assertEqual(fetch_qq_news_sync(), {"ret": 0, "idlist": []})
+        get.assert_called_once_with(QQ_NEWS_HOT_URL, params={"page_size": 50}, timeout=10)
+        response.raise_for_status.assert_called_once_with()
+        response.json.return_value = []
+        with self.assertRaisesRegex(RuntimeError, "无效 JSON"):
+            fetch_qq_news_sync()
+
+    @patch("requests.get")
+    def test_qq_http_failure(self, get: Mock):
+        get.return_value.raise_for_status.side_effect = RuntimeError("upstream failure")
+        with self.assertRaisesRegex(RuntimeError, "腾讯新闻接口请求失败"):
+            fetch_qq_news_sync()
+
     @patch("requests.get")
     def test_fetch_latest_news_uses_currents_query_params(self, get: Mock):
         response = Mock()

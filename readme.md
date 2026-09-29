@@ -7,7 +7,7 @@
 - `/jm 关键词`：搜索 JMComic album。
 - `/jm 数字ID`：下载指定 album，按章节生成 PDF 并上传。
 - `/setu 标签1 标签2 标签3`：按最多 3 个标签获取图片并上传。
-- `/news`：获取 Currents 最新新闻，利用 LLM 生成中文摘要并发送；兼容整句 `每日新闻`。
+- `/news`：默认获取腾讯新闻热点榜，利用 LLM 生成中文摘要并发送；兼容整句 `每日新闻`。
 - `/dailyai`：读取本地指定的 Markdown 论文数据，利用 LLM 生成今日 AI 技术看点；兼容整句 `每日ai`。
 - `/anime-news`：读取已配置的动漫新闻文件并发送；兼容整句 `动漫新闻`。
 - `/profile`：查看当前用户画像 prompt。
@@ -69,7 +69,8 @@ tasks:
     daily: 30
     daily_ai: 60
   daily_news:
-    api_key: "your-currents-api-key"
+    provider: "qq-news"
+    api_key: "" # 仅 currents 需要
     language: "en"
     max_items: 10
   daily_ai:
@@ -78,7 +79,9 @@ tasks:
 
 `llm.context.max_turns` 表示每个会话保留最近多少轮 user/assistant 对话。该上下文只保存在内存中，重启后会清空；任务状态保存在 SQLite 中。
 
-`tasks.daily_news.api_key` 必须填写有效的 Currents API Key。`language` 默认使用英文新闻源，`max_items` 控制交给 LLM 归纳的新闻数量，最大为 `10`。LLM 暂时不可用时，Bot 会降级发送原始标题、描述和链接。
+`tasks.daily_news.provider` 默认是 `qq-news`，参考 DailyHotApi 的腾讯新闻实现，直接请求上游热点榜，无需 API Key，也无需部署 DailyHotApi。`max_items` 控制交给 LLM 归纳的新闻数量，范围为 `1～10`。LLM 失败或返回空摘要时，Bot 会降级发送原始标题、描述和链接。
+
+旧配置未填写 `provider` 时也会使用腾讯新闻源。若需继续使用 Currents，请显式设置 `provider: currents` 并填写有效的 `api_key`；`language` 仅对 Currents 生效，默认为 `en`。
 
 运行时目录会在启动时自动创建，默认都位于 `data/` 下：
 
