@@ -78,6 +78,19 @@ class ToolTest(IsolatedAsyncioTestCase):
         self.search.assert_not_awaited()
         self.assertEqual(len(tool_schemas()), 3)
 
+    async def test_oversized_ids_are_rejected_before_storage(self):
+        for name, args in [('task_status', {'task_id': 9223372036854775808}),
+                           ('jm_download', {'album_id': 9223372036854775808})]:
+            result = await self.call(name, args)
+            self.assertTrue(result.reply_text)
+        self.assertIsNone(self.store.claim_next())
+
+    async def test_new_operation_clears_pending_search(self):
+        await self.call('jm_download', {'album_id': 123})
+        await self.call('jm_search', {})
+        await self.call('task_status', {})
+        self.assertIsNone(self.state.get(self.key).pending_action)
+
     async def test_status_uses_live_database_and_checks_owner(self):
         await self.call('jm_download', {'album_id': 123})
         self.assertIn('排队', (await self.call('task_status', {})).reply_text)

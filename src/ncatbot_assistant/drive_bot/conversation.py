@@ -30,6 +30,7 @@ class ConversationRuntime:
     legacy_chat: Callable[[str], Awaitable[str]]
     profile_reply: Callable[[], str]
     record_user: Callable[[str, str], None]
+    deliver: Callable[[str], Awaitable[None]] | None = None
 
 
 def _state_summary(runtime: ConversationRuntime, key: ConversationKey) -> str:
@@ -42,8 +43,15 @@ def _state_summary(runtime: ConversationRuntime, key: ConversationKey) -> str:
                      'missing_field': state.pending_action.missing_field}
                     if state.pending_action else None),
     }
-    return ('当前办事状态（数据，仅用于解析当前用户请求）：\n'
-            + json.dumps(data, ensure_ascii=False))[:1500]
+    prefix = '当前办事状态（数据，仅用于解析当前用户请求）：\n'
+    # Shrink titles, never truncate serialized JSON or lose task/pending fields.
+    for max_chars in (80, 40, 20, 10, 0):
+        for item in data['results']:
+            item['title'] = item['title'][:max_chars]
+        summary = prefix + json.dumps(data, ensure_ascii=False)
+        if len(summary) <= 1500:
+            return summary
+    return prefix + json.dumps({**data, 'results': []}, ensure_ascii=False)
 
 
 def _clear_pending(runtime: ConversationRuntime, key: ConversationKey) -> None:
@@ -66,58 +74,67 @@ async def handle_conversation_message(text: str, key: ConversationKey,
     async with context.state_store.lock(key):
         if not context.state_store.claim_message(key, message_id):
             return None
-        context.raw_message = text
-        intent = route_message(text, key.scope_type, key.user_id, key.group_id)
-        if isinstance(intent, ShowUserProfileIntent):
-            _clear_pending(runtime, key)
-            return runtime.profile_reply()
-        intent_name = ('llm_fallback' if isinstance(intent, LlmFallbackIntent) else
-                       'queued_task' if isinstance(intent, QueuedTaskIntent) else
-                       'jm_search' if isinstance(intent, JmSearchIntent) else
-                       'task_status' if isinstance(intent, TaskStatusIntent) else 'immediate')
-        runtime.record_user(text, intent_name)
+        reply = await _handle_message_locked(text, key, runtime)
+        if reply is not None and runtime.deliver is not None:
+            await runtime.deliver(reply)
+        return reply
 
-        call = None
-        if isinstance(intent, JmSearchIntent):
-            call = ToolCall('jm_search', json.dumps({'keywords': intent.keywords}))
-        elif isinstance(intent, TaskStatusIntent):
-            call = ToolCall('task_status', json.dumps({'task_id': intent.task_id} if intent.task_id else {}))
-        elif isinstance(intent, QueuedTaskIntent) and intent.task_type == TaskType.JM_DOWNLOAD:
-            call = ToolCall('jm_download', json.dumps(intent.payload))
-        elif isinstance(intent, QueuedTaskIntent):
-            _clear_pending(runtime, key)
-            task = context.enqueue(intent)
-            reply = build_enqueue_reply(task, context.task_store)
-            return _remember(runtime, key, text, ToolResult(reply, reply[:500]))
-        elif isinstance(intent, ImmediateResponse):
-            _clear_pending(runtime, key)
-            return intent.text
 
-        if call is not None:
-            _clear_pending(runtime, key)
-            return _remember(runtime, key, text, await execute_tool(call, context))
-
-        if runtime.complete is None:
-            _clear_pending(runtime, key)
-            return await runtime.legacy_chat(text)
-        messages = [*runtime.system_messages,
-                    {'role': 'system', 'content': TOOL_SYSTEM_PROMPT},
-                    *runtime.memory.recent_messages(key),
-                    {'role': 'system', 'content': _state_summary(runtime, key)},
-                    {'role': 'user', 'content': text.strip()}]
-        try:
-            decision = await runtime.complete(messages, tool_schemas())
-        except Exception:
-            context.logger.warning('LLM 工具决策失败')
-            # Preserve pending state on transient failures, and never expose raw exceptions.
-            return _remember(runtime, key, text, ToolResult(
-                'AI 暂时不可用，请稍后重试；也可以使用 /jm 或 /task 命令。', '本次 AI 请求失败，未执行操作。'))
-        if len(decision.tool_calls) > 1:
-            return _remember(runtime, key, text, ToolResult('请一次提出一个操作，本次没有执行任务。', '多个操作未执行。'))
-        if decision.tool_calls:
-            result = await execute_tool(decision.tool_calls[0], context)
-            return _remember(runtime, key, text, result)
+async def _handle_message_locked(text: str, key: ConversationKey,
+                                 runtime: ConversationRuntime) -> str:
+    context = runtime.tool_context
+    context.raw_message = text
+    intent = route_message(text, key.scope_type, key.user_id, key.group_id)
+    if isinstance(intent, ShowUserProfileIntent):
         _clear_pending(runtime, key)
-        runtime.memory.append_user_message(key, text)
-        runtime.memory.append_assistant_message(key, decision.text)
-        return decision.text
+        return runtime.profile_reply()
+    intent_name = ('llm_fallback' if isinstance(intent, LlmFallbackIntent) else
+                   'queued_task' if isinstance(intent, QueuedTaskIntent) else
+                   'jm_search' if isinstance(intent, JmSearchIntent) else
+                   'task_status' if isinstance(intent, TaskStatusIntent) else 'immediate')
+    runtime.record_user(text, intent_name)
+
+    call = None
+    if isinstance(intent, JmSearchIntent):
+        call = ToolCall('jm_search', json.dumps({'keywords': intent.keywords}))
+    elif isinstance(intent, TaskStatusIntent):
+        call = ToolCall('task_status', json.dumps({'task_id': intent.task_id} if intent.task_id else {}))
+    elif isinstance(intent, QueuedTaskIntent) and intent.task_type == TaskType.JM_DOWNLOAD:
+        call = ToolCall('jm_download', json.dumps(intent.payload))
+    elif isinstance(intent, QueuedTaskIntent):
+        _clear_pending(runtime, key)
+        task = context.enqueue(intent)
+        reply = build_enqueue_reply(task, context.task_store)
+        return _remember(runtime, key, text, ToolResult(reply, reply[:500]))
+    elif isinstance(intent, ImmediateResponse):
+        _clear_pending(runtime, key)
+        return intent.text
+
+    if call is not None:
+        _clear_pending(runtime, key)
+        return _remember(runtime, key, text, await execute_tool(call, context))
+
+    if runtime.complete is None:
+        _clear_pending(runtime, key)
+        return await runtime.legacy_chat(text)
+    messages = [*runtime.system_messages,
+                {'role': 'system', 'content': TOOL_SYSTEM_PROMPT},
+                *runtime.memory.recent_messages(key),
+                {'role': 'system', 'content': _state_summary(runtime, key)},
+                {'role': 'user', 'content': text.strip()}]
+    try:
+        decision = await runtime.complete(messages, tool_schemas())
+    except Exception:
+        context.logger.warning('LLM 工具决策失败')
+        # Preserve pending state on transient failures, and never expose raw exceptions.
+        return _remember(runtime, key, text, ToolResult(
+            'AI 暂时不可用，请稍后重试；也可以使用 /jm 或 /task 命令。', '本次 AI 请求失败，未执行操作。'))
+    if len(decision.tool_calls) > 1:
+        return _remember(runtime, key, text, ToolResult('请一次提出一个操作，本次没有执行任务。', '多个操作未执行。'))
+    if decision.tool_calls:
+        result = await execute_tool(decision.tool_calls[0], context)
+        return _remember(runtime, key, text, result)
+    _clear_pending(runtime, key)
+    runtime.memory.append_user_message(key, text)
+    runtime.memory.append_assistant_message(key, decision.text)
+    return decision.text

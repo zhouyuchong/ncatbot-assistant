@@ -36,14 +36,16 @@ def route_message(
     if task_match is not None:
         if not task_match.strip():
             return TaskStatusIntent()
-        if re.fullmatch(r"[0-9]+", task_match.strip()) and int(task_match.strip()) > 0:
+        if _valid_id_text(task_match.strip()):
             return TaskStatusIntent(task_id=int(task_match.strip()))
         return ImmediateResponse("任务编号必须是正整数，例如 /task 42。")
 
-    jm_match = _match_slash_with_args(text, "jm", require_args=True)
-    if jm_match:
+    jm_match = _match_slash_with_args(text, "jm", require_args=False)
+    if jm_match is not None:
         after_jm = jm_match.strip()
         if re.fullmatch(r"\d+", after_jm):
+            if not _valid_id_text(after_jm):
+                return ImmediateResponse("资源 ID 必须是有效范围内的正整数。")
             return QueuedTaskIntent(
                 task_type=TaskType.JM_DOWNLOAD,
                 scope_type=scope_type,
@@ -111,6 +113,11 @@ def route_message(
         )
 
     return LlmFallbackIntent(prompt=text)
+
+
+def _valid_id_text(text: str) -> bool:
+    return (bool(re.fullmatch(r"[0-9]+", text)) and len(text) <= 19
+            and 0 < int(text) <= 9223372036854775807)
 
 
 def _normalize_text_alias(message: str) -> str:

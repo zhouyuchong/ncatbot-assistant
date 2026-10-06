@@ -41,10 +41,10 @@ def tool_schemas() -> list[dict]:
         ('jm_search', '用户明确要求搜索 JM 资源。缺少关键词时用空参数追问。讨论搜索功能不要调用。',
          {'keywords': {'type': 'string', 'maxLength': 200, 'description': '用户想搜索的关键词'}}),
         ('jm_download', '用户明确要求下载 JM 资源。album_id 和 result_index 二选一。序号由程序解析，不能猜测 ID。缺参数用空对象。',
-         {'album_id': {'type': 'integer', 'minimum': 1, 'description': '用户明确提供的资源 ID'},
-          'result_index': {'type': 'integer', 'minimum': 1, 'description': '当前搜索结果的序号，从 1 开始'}}),
+         {'album_id': {'type': 'integer', 'minimum': 1, 'maximum': 9223372036854775807, 'description': '用户明确提供的资源 ID'},
+          'result_index': {'type': 'integer', 'minimum': 1, 'maximum': 9223372036854775807, 'description': '当前搜索结果的序号，从 1 开始'}}),
         ('task_status', '查询当前用户当前会话的任务状态。未指定编号时查询最近的下载任务。',
-         {'task_id': {'type': 'integer', 'minimum': 1}}),
+         {'task_id': {'type': 'integer', 'minimum': 1, 'maximum': 9223372036854775807}}),
     ]
     return [{'type': 'function', 'function': {'name': name, 'description': description,
             'parameters': {'type': 'object', 'properties': properties, 'additionalProperties': False}}}
@@ -52,7 +52,7 @@ def tool_schemas() -> list[dict]:
 
 
 def _positive_integer(value: Any) -> bool:
-    return type(value) is int and value > 0
+    return type(value) is int and 0 < value <= 9223372036854775807
 
 
 def build_enqueue_reply(task: TaskRecord, store: TaskStore) -> str:
@@ -117,6 +117,8 @@ async def execute_tool(call: ToolCall, context: ToolExecutionContext) -> ToolRes
         context.state_store.update(context.key, state)
         return _result(build_enqueue_reply(task, context.task_store))
 
+    state.pending_action = None
+    context.state_store.update(context.key, state)
     task_id = args.get('task_id', state.last_download_task_id)
     if task_id is None:
         return _result('当前没有最近的下载任务，请提供任务编号，例如 /task 42。')

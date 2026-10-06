@@ -122,7 +122,7 @@ class ConversationTest(IsolatedAsyncioTestCase):
         await self.send('/jm 关键词')
         await self.send('下载第二个', decision('jm_download', result_index=2))
         messages = self.complete.call_args.args[0]
-        summary = [m['content'] for m in messages if '当前办事状态' in m['content']][0]
+        summary = [m['content'] for m in messages if m['content'].startswith('当前办事状态')][0]
         self.assertLessEqual(len(summary), 1500)
         self.assertTrue(all(len(m['content']) <= 500 for m in self.memory.recent_messages(self.key) if m['role'] == 'assistant'))
         self.now = 900
@@ -132,6 +132,15 @@ class ConversationTest(IsolatedAsyncioTestCase):
         self.states.clear(self.key)
         self.assertIn('编号', await self.send('/task'))
         self.assertIn('运行', await self.send('/task 1'))
+
+    async def test_summary_remains_valid_json_with_escaped_titles(self):
+        self.search.return_value = [JmSearchItem(i + 1, '\\' * 1000) for i in range(10)]
+        await self.send('/jm 关键词')
+        await self.send('hello', LlmDecision(text='hello'))
+        summary = [m['content'] for m in self.complete.call_args.args[0] if m['content'].startswith('当前办事状态')][0]
+        data = json.loads(summary.split('\n', 1)[1])
+        self.assertEqual(len(data['results']), 10)
+        self.assertLessEqual(len(summary), 1500)
 
     async def test_tools_disabled_still_supports_commands(self):
         self.runtime.complete = None

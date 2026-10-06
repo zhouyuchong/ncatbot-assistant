@@ -93,6 +93,15 @@ class DriveBotRouterTest(TestCase):
         self.assertIsNone(route_message("/task", ScopeType.PRIVATE, "u1").task_id)
         self.assertIn("编号", route_message("/task abc", ScopeType.PRIVATE, "u1").text)
 
+    def test_invalid_numeric_commands_and_missing_jm_args_do_not_fall_back_to_llm(self):
+        for text in ['/task ' + '9' * 5000, '/task 9223372036854775808',
+                     '/jm ' + '9' * 5000, '/jm 9223372036854775808']:
+            with self.subTest(text=text[:40]):
+                self.assertEqual(type(route_message(text, ScopeType.PRIVATE, 'u1')).__name__, 'ImmediateResponse')
+        intent = route_message('/jm', ScopeType.PRIVATE, 'u1')
+        self.assertEqual(type(intent).__name__, 'JmSearchIntent')
+        self.assertEqual(intent.keywords, '')
+
     def test_usage_remains_immediate(self):
         intent = route_message("帮助", scope_type=ScopeType.PRIVATE, user_id="10001")
 

@@ -233,7 +233,7 @@ class DriveBotPlugin(NcatBotPlugin):
         if not event.message.is_at(event.self_id):
             return
 
-        self.logger.info(event)
+        self.logger.info("收到群聊请求 group=%s user=%s", event.group_id, event.user_id)
         await self._handle_message(
             event=event,
             text=event.message.text,
@@ -254,7 +254,7 @@ class DriveBotPlugin(NcatBotPlugin):
         raw_message='在', sender=QQSender(user_id='1620404337', nickname='DamonZzz', sex='unknown', age=0), font=14, message_seq=1147773616,
         real_id='1147773616', real_seq='70', message_format='array', target_id='1620404337'))
         """
-        self.logger.info("private msg: %s", event)
+        self.logger.info("收到私聊请求 user=%s", event.user_id)
         await self._handle_message(
             event=event,
             text=event.raw_message,
@@ -302,6 +302,10 @@ class DriveBotPlugin(NcatBotPlugin):
         user_memory = DriveBotPlugin._user_memory_message(self, scope_type, user_id)
         if user_memory:
             system_messages.append(user_memory)
+
+        async def deliver(reply):
+            await event.reply(text=reply)
+
         runtime = ConversationRuntime(
             tool_context=ToolExecutionContext(key, self._conversation_state_store,
                 self._task_store, search, enqueue, self.logger),
@@ -312,10 +316,9 @@ class DriveBotPlugin(NcatBotPlugin):
             profile_reply=lambda: DriveBotPlugin._build_user_profile_reply(self, user_id),
             record_user=lambda text, kind: DriveBotPlugin._record_user_memory_message(
                 self, scope_type, group_id, user_id, text, kind),
+            deliver=deliver,
         )
-        reply = await handle_conversation_message(text, key, str(getattr(event, "message_id", "") or ""), runtime)
-        if reply is not None:
-            await event.reply(text=reply)
+        await handle_conversation_message(text, key, str(getattr(event, "message_id", "") or ""), runtime)
 
     def _build_user_profile_reply(self, user_id: str) -> str:
         config = getattr(self, "_user_memory_config", UserMemoryConfig())

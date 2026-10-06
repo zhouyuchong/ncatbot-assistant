@@ -4,7 +4,7 @@ import sys
 import types
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 from unittest import TestCase, main
 
 import tests.bootstrap  # noqa: F401
@@ -316,6 +316,50 @@ class DriveBotConfigTest(TestCase):
         self.assertIn("#1", event.replies[0]["text"])
         self.assertEqual(llm.await_count, 1)
         self.assertEqual(plugin.api.ai.calls, [])
+
+    def test_reply_delivery_is_serialized_with_result_state(self):
+        module = load_core_plugin_module()
+        from ncatbot_assistant.drive_bot.services.jm import JmSearchItem
+        plugin = self.make_plugin(module, FakeAiApi())
+        async def scenario():
+            first_started = asyncio.Event()
+            release_first = asyncio.Event()
+            delivered = []
+            async def first_reply(**kwargs):
+                first_started.set()
+                await release_first.wait()
+                delivered.append(kwargs['text'])
+            async def second_reply(**kwargs):
+                delivered.append(kwargs['text'])
+            first_event = types.SimpleNamespace(message_id='first', reply=first_reply)
+            second_event = types.SimpleNamespace(message_id='second', reply=second_reply)
+            first = asyncio.create_task(module.DriveBotPlugin._handle_message(plugin, first_event, '/jm A', module.ScopeType.GROUP, 'u1', 'g1'))
+            await first_started.wait()
+            second = asyncio.create_task(module.DriveBotPlugin._handle_message(plugin, second_event, '/jm B', module.ScopeType.GROUP, 'u1', 'g1'))
+            await asyncio.sleep(.01)
+            was_blocked = not second.done()
+            release_first.set()
+            await asyncio.gather(first, second)
+            self.assertTrue(was_blocked)
+            self.assertIn('[111]', delivered[0])
+            self.assertIn('[222]', delivered[1])
+            key = module.ConversationKey.group('g1', 'u1')
+            self.assertEqual(plugin._conversation_state_store.get(key).search_results[0].album_id, 222)
+        def search(tags, logger):
+            return [JmSearchItem(111 if tags == ['A'] else 222, tags[0])]
+        with patch.object(module, 'search_items', search):
+            asyncio.run(scenario())
+
+    def test_message_entry_logs_do_not_include_raw_message(self):
+        module = load_core_plugin_module()
+        plugin = self.make_plugin(module, FakeAiApi())
+        plugin.logger = Mock()
+        plugin._handle_message = AsyncMock()
+        event = types.SimpleNamespace(message=types.SimpleNamespace(is_at=lambda _: True, text='secret-chat'),
+            self_id='bot', group_id='g1', user_id='u1', raw_message='secret-chat')
+        asyncio.run(module.DriveBotPlugin.on_group_message(plugin, event))
+        asyncio.run(module.DriveBotPlugin.on_private_message(plugin, event))
+        self.assertNotIn('secret-chat', str(plugin.logger.mock_calls))
 
     def test_handle_group_message_records_user_memory_after_routing(self):
         module = load_core_plugin_module()
