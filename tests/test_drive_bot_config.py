@@ -3,6 +3,8 @@ import importlib.util
 import sys
 import types
 from pathlib import Path
+from tempfile import TemporaryDirectory
+from unittest.mock import AsyncMock, patch
 from unittest import TestCase, main
 
 import tests.bootstrap  # noqa: F401
@@ -78,6 +80,12 @@ class FakePlugin:
         self._user_memory_config = module.UserMemoryConfig()
         self._user_memory_store = module.UserMemoryStore(":memory:")
         self._user_memory_store.initialize()
+        self._conversation_state_store = module.TaskConversationStateStore()
+        self._test_temp = TemporaryDirectory()
+        self._task_store = module.TaskStore(Path(self._test_temp.name) / 'tasks.sqlite3')
+        self._task_store.initialize()
+        self._task_estimates = {}
+        self._events_by_task_id = {}
         self.api = types.SimpleNamespace(ai=ai_api)
         self.logger = FakeLogger()
 
@@ -101,6 +109,12 @@ class FakeReplyEvent:
 
 
 class DriveBotConfigTest(TestCase):
+    def make_plugin(self, module, ai_api):
+        plugin = FakePlugin(module, ai_api)
+        self.addCleanup(plugin._test_temp.cleanup)
+        self.addCleanup(plugin._user_memory_store.close)
+        return plugin
+
     def test_llm_config_prefers_top_level_config_yaml_values(self):
         module = load_core_plugin_module()
         config = {
@@ -190,7 +204,7 @@ class DriveBotConfigTest(TestCase):
     def test_ask_ai_includes_history_before_current_prompt(self):
         module = load_core_plugin_module()
         ai_api = FakeAiApi(response="继续解释 asyncio")
-        plugin = FakePlugin(module, ai_api)
+        plugin = self.make_plugin(module, ai_api)
         key = module.ConversationKey.private("u1")
         plugin._conversation_memory.append_user_message(key, "我在学 asyncio")
         plugin._conversation_memory.append_assistant_message(key, "可以从事件循环理解")
@@ -219,7 +233,7 @@ class DriveBotConfigTest(TestCase):
     def test_ask_ai_records_user_and_assistant_on_success(self):
         module = load_core_plugin_module()
         ai_api = FakeAiApi(response="你好呀")
-        plugin = FakePlugin(module, ai_api)
+        plugin = self.make_plugin(module, ai_api)
 
         asyncio.run(
             module.DriveBotPlugin._ask_ai(
@@ -243,7 +257,7 @@ class DriveBotConfigTest(TestCase):
     def test_ask_ai_records_only_user_on_failure(self):
         module = load_core_plugin_module()
         ai_api = FakeAiApi(error=RuntimeError("boom"))
-        plugin = FakePlugin(module, ai_api)
+        plugin = self.make_plugin(module, ai_api)
 
         result = asyncio.run(
             module.DriveBotPlugin._ask_ai(
@@ -267,7 +281,7 @@ class DriveBotConfigTest(TestCase):
     def test_group_ask_ai_injects_user_memory_before_short_term_history(self):
         module = load_core_plugin_module()
         ai_api = FakeAiApi(response="短一点解释")
-        plugin = FakePlugin(module, ai_api)
+        plugin = self.make_plugin(module, ai_api)
         plugin._user_memory_store.update_profile_prompt("u1", "用户偏好简短回答。", 0)
         key = module.ConversationKey.group("g1", "u1")
         plugin._conversation_memory.append_user_message(key, "我在学 asyncio")
@@ -287,9 +301,25 @@ class DriveBotConfigTest(TestCase):
         self.assertEqual(messages[2], {"role": "user", "content": "我在学 asyncio"})
         self.assertEqual(messages[-1], {"role": "user", "content": "继续"})
 
+    def test_plugin_connects_tools_and_registers_task_event(self):
+        module = load_core_plugin_module()
+        from ncatbot_assistant.drive_bot.llm_client import LlmDecision, ToolCall
+        plugin = self.make_plugin(module, FakeAiApi())
+        event = FakeReplyEvent()
+        event.message_id = "message-1"
+        llm = AsyncMock(return_value=LlmDecision(tool_calls=(ToolCall("jm_download", '{"album_id":456}'),)))
+        with patch.object(module, "complete_once", llm):
+            asyncio.run(module.DriveBotPlugin._handle_message(
+                plugin, event, "帮我下载456", module.ScopeType.GROUP, "u1", "g1"))
+        self.assertEqual(plugin._task_store.get(1).payload, {"album_id": 456})
+        self.assertIs(plugin._events_by_task_id[1], event)
+        self.assertIn("#1", event.replies[0]["text"])
+        self.assertEqual(llm.await_count, 1)
+        self.assertEqual(plugin.api.ai.calls, [])
+
     def test_handle_group_message_records_user_memory_after_routing(self):
         module = load_core_plugin_module()
-        plugin = FakePlugin(module, FakeAiApi(response="ok"))
+        plugin = self.make_plugin(module, FakeAiApi(response="ok"))
         event = FakeReplyEvent()
 
         asyncio.run(
@@ -310,7 +340,7 @@ class DriveBotConfigTest(TestCase):
 
     def test_handle_private_message_does_not_record_user_memory(self):
         module = load_core_plugin_module()
-        plugin = FakePlugin(module, FakeAiApi(response="ok"))
+        plugin = self.make_plugin(module, FakeAiApi(response="ok"))
         event = FakeReplyEvent()
 
         asyncio.run(
@@ -328,7 +358,7 @@ class DriveBotConfigTest(TestCase):
 
     def test_show_user_profile_replies_with_current_user_prompt_without_recording_memory(self):
         module = load_core_plugin_module()
-        plugin = FakePlugin(module, FakeAiApi(response="should not call ai"))
+        plugin = self.make_plugin(module, FakeAiApi(response="should not call ai"))
         plugin._user_memory_store.update_profile_prompt("u1", "用户偏好简短回答。", 0)
         event = FakeReplyEvent()
 

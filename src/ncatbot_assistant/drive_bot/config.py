@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from dataclasses import dataclass
+import math
 from pathlib import Path
 from typing import Any
 
@@ -46,10 +48,6 @@ def get_task_estimates(config: dict[str, Any]) -> dict[str, int]:
     return {str(key): int(value) for key, value in estimates.items()}
 
 
-from dataclasses import dataclass
-import math
-
-
 @dataclass(frozen=True)
 class LlmToolsConfig:
     enabled: bool = True
@@ -58,7 +56,7 @@ class LlmToolsConfig:
 
 def get_llm_tools_config(config: dict[str, Any]) -> LlmToolsConfig:
     llm = config.get('llm') or {}
-    tools = llm.get('tools') or {} if isinstance(llm, dict) else {}
+    tools = (llm.get('tools') or {}) if isinstance(llm, dict) else {}
     if not isinstance(tools, dict):
         tools = {}
     enabled = tools.get('enabled', True)

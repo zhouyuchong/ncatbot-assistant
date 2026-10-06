@@ -21,18 +21,19 @@ if str(PROJECT_DIR) not in sys.path:
 
 from ncatbot_assistant.drive_bot.config import (  # noqa: E402
     get_storage_path,
+    get_llm_tools_config,
     get_task_estimates,
     load_project_config,
 )
+from ncatbot_assistant.drive_bot.conversation import ConversationRuntime, handle_conversation_message
+from ncatbot_assistant.drive_bot.conversation_state import TaskConversationStateStore
+from ncatbot_assistant.drive_bot.llm_client import complete_once
+from ncatbot_assistant.drive_bot.tools import ToolExecutionContext
+from ncatbot_assistant.drive_bot.services.jm import search_items
 from ncatbot_assistant.drive_bot.constants import ensure_runtime_directories  # noqa: E402
-from ncatbot_assistant.drive_bot.estimator import estimate_seconds, format_duration  # noqa: E402
+from ncatbot_assistant.drive_bot.estimator import estimate_seconds  # noqa: E402
 from ncatbot_assistant.drive_bot.intents import (  # noqa: E402
-    ImmediateResponse,
-    JmSearchIntent,
-    LlmFallbackIntent,
-    QueuedTaskIntent,
     ScopeType,
-    ShowUserProfileIntent,
 )
 from ncatbot_assistant.drive_bot.jobs.handlers import TaskHandlers  # noqa: E402
 from ncatbot_assistant.drive_bot.jobs.queue import TaskQueueWorker  # noqa: E402
@@ -42,12 +43,10 @@ from ncatbot_assistant.drive_bot.llm_context import (  # noqa: E402
     get_llm_context_config,
 )
 from ncatbot_assistant.drive_bot.reply import ReplyAdapter  # noqa: E402
-from ncatbot_assistant.drive_bot.router import route_message  # noqa: E402
 from ncatbot_assistant.drive_bot.services.daily import generate_daily_news  # noqa: E402
 from ncatbot_assistant.drive_bot.services.daily_ai import generate_daily_ai_summary  # noqa: E402
 from ncatbot_assistant.drive_bot.services.anime_news import get_anime_news  # noqa: E402
 from ncatbot_assistant.drive_bot.services.trending_paper import generate_trending_paper_summary  # noqa: E402
-from ncatbot_assistant.drive_bot.services.jm import search as jm_search  # noqa: E402
 from ncatbot_assistant.drive_bot.storage import TaskStore  # noqa: E402
 from ncatbot_assistant.drive_bot.user_memory import (  # noqa: E402
     DailyUserMemoryScheduler,
@@ -63,7 +62,7 @@ from ncatbot.plugin import NcatBotPlugin
 
 AI_SYSTEM_PROMPT = (
     "你是一个接入 QQ 的轻量助手。请用简洁、自然的中文回复用户，"
-    "不要假装自己能上传文件或执行插件命令。"
+    "实际操作由程序执行，不要声称尚未执行或尚未成功的操作已经完成。"
 )
 NEKO_PROMPT_PATH = PROJECT_DIR / "resources" / "skills" / "neko_prompt_r18.md"
 
@@ -133,18 +132,6 @@ def _build_ai_system_prompt() -> str:
     return f"{AI_SYSTEM_PROMPT}\n\n{neko_prompt}"
 
 
-def _intent_type(intent) -> str:
-    if isinstance(intent, LlmFallbackIntent):
-        return "llm_fallback"
-    if isinstance(intent, QueuedTaskIntent):
-        return "queued_task"
-    if isinstance(intent, ShowUserProfileIntent):
-        return "show_user_profile"
-    if isinstance(intent, ImmediateResponse):
-        return "immediate"
-    return "unknown"
-
-
 class DriveBotPlugin(NcatBotPlugin):
     """Handle QQ group requests that mention the bot."""
 
@@ -168,6 +155,7 @@ class DriveBotPlugin(NcatBotPlugin):
         )
         self._task_estimates = get_task_estimates(project_config)
         self._events_by_task_id = {}
+        self._conversation_state_store = TaskConversationStateStore()
         storage_path = get_storage_path(project_config)
         self._task_store = TaskStore(storage_path)
         self._task_store.initialize()
@@ -283,48 +271,51 @@ class DriveBotPlugin(NcatBotPlugin):
         user_id: str,
         group_id: str | None,
     ) -> None:
-        intent = route_message(
-            text,
-            scope_type=scope_type,
-            group_id=group_id,
-            user_id=user_id,
-        )
-        if isinstance(intent, ShowUserProfileIntent):
-            await event.reply(text=DriveBotPlugin._build_user_profile_reply(self, user_id))
-            return
+        key = ConversationKey.from_scope(scope_type, user_id, group_id)
+        project_config = _load_project_config()
+        tool_config = get_llm_tools_config(project_config)
 
-        DriveBotPlugin._record_user_memory_message(
-            self,
-            scope_type=scope_type,
-            group_id=group_id,
-            user_id=user_id,
-            text=text,
-            intent_type=_intent_type(intent),
-        )
-        if isinstance(intent, JmSearchIntent):
-            result = await asyncio.to_thread(jm_search, intent.keywords.split(), self.logger)
-            await event.reply(text=result)
-            return
+        async def search(keywords):
+            return await asyncio.to_thread(search_items, keywords.split(), self.logger)
 
-        if isinstance(intent, ImmediateResponse):
-            await event.reply(text=intent.text)
-            return
-
-        if isinstance(intent, QueuedTaskIntent):
-            task = self._enqueue_task(intent)
+        def enqueue(intent):
+            task = DriveBotPlugin._enqueue_task(self, intent)
             self._events_by_task_id[task.id] = event
-            await event.reply(text=self._build_enqueue_reply(task))
-            return
+            return task
 
-        if isinstance(intent, LlmFallbackIntent):
-            await event.reply(
-                text=await self._ask_ai(
-                    intent.prompt,
-                    scope_type=scope_type,
-                    user_id=user_id,
-                    group_id=group_id,
-                )
-            )
+        llm_config = _merge_llm_config(project_config, {
+            "ai_base_url": self.get_config("ai_base_url"),
+            "ai_api_key": self.get_config("ai_api_key"),
+            "ai_model": self.get_config("ai_model"),
+            "ai_temperature": self.get_config("ai_temperature", 0.7),
+            "ai_max_tokens": self.get_config("ai_max_tokens", 800),
+        })
+        llm_config.update(timeout_seconds=tool_config.timeout_seconds, logger=self.logger)
+
+        async def complete(messages, tools):
+            return await complete_once(messages, llm_config, tools)
+
+        async def legacy_chat(prompt):
+            return await DriveBotPlugin._ask_ai(self, prompt, scope_type, user_id, group_id)
+
+        system_messages = [{"role": "system", "content": _build_ai_system_prompt()}]
+        user_memory = DriveBotPlugin._user_memory_message(self, scope_type, user_id)
+        if user_memory:
+            system_messages.append(user_memory)
+        runtime = ConversationRuntime(
+            tool_context=ToolExecutionContext(key, self._conversation_state_store,
+                self._task_store, search, enqueue, self.logger),
+            memory=self._conversation_memory,
+            complete=complete if tool_config.enabled else None,
+            system_messages=system_messages,
+            legacy_chat=legacy_chat,
+            profile_reply=lambda: DriveBotPlugin._build_user_profile_reply(self, user_id),
+            record_user=lambda text, kind: DriveBotPlugin._record_user_memory_message(
+                self, scope_type, group_id, user_id, text, kind),
+        )
+        reply = await handle_conversation_message(text, key, str(getattr(event, "message_id", "") or ""), runtime)
+        if reply is not None:
+            await event.reply(text=reply)
 
     def _build_user_profile_reply(self, user_id: str) -> str:
         config = getattr(self, "_user_memory_config", UserMemoryConfig())
@@ -349,18 +340,6 @@ class DriveBotPlugin(NcatBotPlugin):
             raw_message=intent.raw_message,
             payload=intent.payload,
             estimated_seconds=estimated,
-        )
-
-    def _build_enqueue_reply(self, task) -> str:
-        position = self._task_store.queue_position(task.id)
-        wait_seconds = self._task_store.estimated_wait_seconds(task.id)
-        notify_text = "完成后我会 @你。" if task.scope_type == ScopeType.GROUP else "完成后我会通知你。"
-        return (
-            f"已收到，任务 #{task.id} 已加入队列。\n"
-            f"当前排队位置：{position}\n"
-            f"预计等待：{format_duration(wait_seconds)}，"
-            f"预计总耗时：{format_duration(wait_seconds + task.estimated_seconds)}。\n"
-            f"{notify_text}"
         )
 
     def _record_user_memory_message(
