@@ -1,4 +1,6 @@
 import asyncio
+from dataclasses import dataclass
+from itertools import islice
 import os
 import time
 
@@ -56,19 +58,30 @@ def delete_files_in_directory(target_path: str, logger) -> None:
         logger.warning(f"删除文件时出错: {exc}")
 
 
-def jm_search(tags: list[str], logger) -> str:
+@dataclass(frozen=True)
+class JmSearchItem:
+    album_id: int
+    title: str
+
+
+def search_items(tags: list[str], logger, limit: int = 10) -> list[JmSearchItem]:
     import jmcomic
 
     client = jmcomic.JmOption.default().new_jm_client()
-    search_query = ""
-    for tag in tags:
-        search_query += f"+{tag} "
-    logger.debug(f"开始搜索: {search_query}")
-    page: jmcomic.JmSearchPage = client.search_site(search_query=search_query, page=1)
-    ret_text = ""
-    for album_id, title in page:
-        ret_text += f"[{album_id}]: {title}\n"
-    if not ret_text:
-        keyword = " ".join(tags)
-        return f"没有找到与「{keyword}」相关的 JM 结果。"
-    return ret_text
+    search_query = " ".join(f"+{tag}" for tag in tags)
+    logger.debug("开始 JM 搜索")
+    page = client.search_site(search_query=search_query, page=1)
+    return [JmSearchItem(int(album_id), str(title))
+            for album_id, title in islice(page, max(0, min(limit, 10)))]
+
+
+def format_search_results(items: list[JmSearchItem], keywords: str) -> str:
+    if not items:
+        return f"没有找到与「{keywords}」相关的 JM 结果。"
+    lines = [f"{index}. [{item.album_id}]: {item.title}"
+             for index, item in enumerate(items, 1)]
+    return "\n".join(lines) + "\n可以用 /jm ID 下载，或告诉我“下载第二个”。"
+
+
+def jm_search(tags: list[str], logger) -> str:
+    return format_search_results(search_items(tags, logger), " ".join(tags))

@@ -10,6 +10,7 @@ LastEditTime: 2026-06-22 13:47:25
 """
 
 import sys
+import asyncio
 from functools import lru_cache
 from pathlib import Path
 from typing import Any
@@ -27,6 +28,7 @@ from ncatbot_assistant.drive_bot.constants import ensure_runtime_directories  # 
 from ncatbot_assistant.drive_bot.estimator import estimate_seconds, format_duration  # noqa: E402
 from ncatbot_assistant.drive_bot.intents import (  # noqa: E402
     ImmediateResponse,
+    JmSearchIntent,
     LlmFallbackIntent,
     QueuedTaskIntent,
     ScopeType,
@@ -286,7 +288,6 @@ class DriveBotPlugin(NcatBotPlugin):
             scope_type=scope_type,
             group_id=group_id,
             user_id=user_id,
-            jm_search_func=lambda tags: jm_search(tags, self.logger),
         )
         if isinstance(intent, ShowUserProfileIntent):
             await event.reply(text=DriveBotPlugin._build_user_profile_reply(self, user_id))
@@ -300,6 +301,11 @@ class DriveBotPlugin(NcatBotPlugin):
             text=text,
             intent_type=_intent_type(intent),
         )
+        if isinstance(intent, JmSearchIntent):
+            result = await asyncio.to_thread(jm_search, intent.keywords.split(), self.logger)
+            await event.reply(text=result)
+            return
+
         if isinstance(intent, ImmediateResponse):
             await event.reply(text=intent.text)
             return

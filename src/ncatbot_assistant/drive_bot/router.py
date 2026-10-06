@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Callable
 
 from .commands import slash_aliases, text_aliases
 from .intents import (
     ImmediateResponse,
+    JmSearchIntent,
     LlmFallbackIntent,
     QueuedTaskIntent,
     ScopeType,
@@ -22,7 +22,6 @@ def route_message(
     scope_type: ScopeType,
     user_id: str,
     group_id: str | None = None,
-    jm_search_func: Callable[[list[str]], str] | None = None,
 ):
     text = message.strip()
 
@@ -45,10 +44,7 @@ def route_message(
                 payload={"album_id": int(after_jm)},
             )
 
-        tags = after_jm.split()
-        if jm_search_func is None:
-            return ImmediateResponse("JM 搜索暂时不可用")
-        return ImmediateResponse(jm_search_func(tags))
+        return JmSearchIntent(keywords=after_jm)
 
     setu_match = _match_slash_with_args(text, "setu", require_args=False)
     if setu_match is not None:

@@ -75,16 +75,16 @@ class DriveBotRouterTest(TestCase):
 
         self.assertEqual(type(intent).__name__, "ShowUserProfileIntent")
 
-    def test_jm_search_remains_immediate(self):
+    def test_jm_keywords_returns_search_intent(self):
         intent = route_message(
             "/jm 原神",
             scope_type=ScopeType.GROUP,
             user_id="10001",
             group_id="20002",
-            jm_search_func=lambda tags: "search:" + ",".join(tags),
         )
 
-        self.assertEqual(intent.text, "search:原神")
+        self.assertEqual(type(intent).__name__, "JmSearchIntent")
+        self.assertEqual(intent.keywords, "原神")
 
     def test_usage_remains_immediate(self):
         intent = route_message("帮助", scope_type=ScopeType.PRIVATE, user_id="10001")
