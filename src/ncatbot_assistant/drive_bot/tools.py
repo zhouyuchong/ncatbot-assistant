@@ -46,7 +46,7 @@ def tool_schemas() -> list[dict]:
         ('jm_download', '用户明确要求下载 JM 资源。album_id 和 result_index 二选一。序号由程序解析，不能猜测 ID。缺参数用空对象。',
          {'album_id': {'type': 'integer', 'minimum': 1, 'maximum': 9223372036854775807, 'description': '用户明确提供的资源 ID'},
           'result_index': {'type': 'integer', 'minimum': 1, 'maximum': 9223372036854775807, 'description': '当前搜索结果的序号，从 1 开始'}}),
-        ('setu', '按最多 3 个标签获取一张二次元插画，例如“来张猫耳插画”。没有指定标签则随机获取。只有明确请求发图才调用，普通图片讨论不要调用。',
+        ('setu', '用户请求涩图时调用，例如“涩图”“来张涩图”“来张猫耳蓝发的涩图”。从请求中提取最多 3 个标签，没有指定标签则随机获取。只有索取涩图的意图才调用，仅讨论或提到涩图不要调用。',
          {'tags': {'type': 'array', 'maxItems': 3, 'items': {'type': 'string', 'minLength': 1},
                    'description': '用户要求的图片标签；未指定时省略或传空数组'}}),
         ('daily_news', '获取今日综合热点新闻，例如“今天有什么新闻吗”“看看今日新闻”。使用已配置的新闻源，不支持按日期或主题筛选。仅讨论新闻功能时不要调用。', {}),
@@ -108,7 +108,7 @@ async def execute_tool(call: ToolCall, context: ToolExecutionContext) -> ToolRes
         state.last_task_id = task.id
         context.state_store.update(context.key, state)
         context.logger.info('Queued image tool: tool=setu task_id=%s', task.id)
-        return _result('插画图片\n' + build_enqueue_reply(task, context.task_store))
+        return _result('涩图\n' + build_enqueue_reply(task, context.task_store))
 
     if call.name == 'jm_search':
         keywords = args.get('keywords', '')

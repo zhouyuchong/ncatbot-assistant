@@ -81,7 +81,7 @@ class ConversationTest(IsolatedAsyncioTestCase):
         deleted = Mock()
         handlers = TaskHandlers(reply, setu_get_url=get_url, setu_download_image=download,
                                 image_dir=self.temp.name, delete_file=deleted)
-        queued = await self.send('来张猫耳蓝发插画', decision('setu', tags=['猫耳', '蓝发']))
+        queued = await self.send('来张猫耳蓝发的涩图', decision('setu', tags=['猫耳', '蓝发']))
         self.assertIn('#1', queued)
         self.assertEqual(self.complete.await_count, 1)
         self.assertIn('setu', {t['function']['name'] for t in self.complete.call_args.args[1]})
@@ -108,13 +108,13 @@ class ConversationTest(IsolatedAsyncioTestCase):
         self.assertIsNone(self.store.claim_next())
         self.complete.assert_not_awaited()
         self.legacy.assert_not_awaited()
-        self.assertTrue(any('插画' in m['content'] for m in self.memory.recent_messages(self.key) if m['role'] == 'assistant'))
+        self.assertTrue(any('涩图' in m['content'] for m in self.memory.recent_messages(self.key) if m['role'] == 'assistant'))
 
     async def test_setu_duplicate_and_worker_failure(self):
         from ncatbot_assistant.drive_bot.jobs.handlers import TaskHandlers
-        queued = await self.send('来张插画', decision('setu'), message_id='setu-dup')
+        queued = await self.send('来张涩图', decision('setu'), message_id='setu-dup')
         self.assertIn('#1', queued)
-        self.assertIsNone(await self.send('来张插画', decision('setu'), message_id='setu-dup'))
+        self.assertIsNone(await self.send('来张涩图', decision('setu'), message_id='setu-dup'))
         reply = Mock()
         reply.upload_files = AsyncMock()
         handlers = TaskHandlers(reply, setu_get_url=AsyncMock(return_value=(False, 'no images')))
