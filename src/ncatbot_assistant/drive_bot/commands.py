@@ -19,7 +19,7 @@ class CommandSpec:
 
 COMMAND_SPECS: tuple[CommandSpec, ...] = (
     CommandSpec(name="task", title="任务状态", usage="/task [任务编号]",
-                description="查询当前会话中自己的任务；省略编号查询最近下载",
+                description="查询当前会话中自己的任务；省略编号查询最近提交的任务",
                 slash_aliases=("/task",), category="other"),
     CommandSpec(
         name="help",
@@ -51,7 +51,7 @@ COMMAND_SPECS: tuple[CommandSpec, ...] = (
         name="news",
         title="每日新闻",
         usage="/news",
-        description="获取 Currents 最新新闻，并生成中文摘要",
+        description="获取已配置的热点新闻，并生成中文摘要",
         slash_aliases=("/news", "/dailynews"),
         text_aliases=("每日新闻",),
         task_type=TaskType.DAILY,

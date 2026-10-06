@@ -72,6 +72,59 @@ class ConversationTest(IsolatedAsyncioTestCase):
         self.assertIn('成功', await self.send('完成了吗', decision('task_status')))
         self.assertEqual(self.complete.await_count, 3)
 
+    async def test_news_natural_requests_reach_handlers_and_latest_status(self):
+        from ncatbot_assistant.drive_bot.jobs.handlers import TaskHandlers
+        reply = Mock()
+        reply.reply_direct_text = AsyncMock()
+        handlers = TaskHandlers(reply, daily_function=AsyncMock(return_value='今日新闻内容'),
+                                anime_news_function=AsyncMock(return_value='动漫新闻内容'))
+        worker = TaskQueueWorker(self.store, {TaskType.DAILY: handlers.handle, TaskType.ANIME_NEWS: handlers.handle}, AsyncMock())
+        for number, text, tool, task_type, expected in [
+            (1, '今天有什么新闻吗', 'daily_news', TaskType.DAILY, '今日新闻内容'),
+            (2, '最近有什么动漫新闻', 'anime_news', TaskType.ANIME_NEWS, '动漫新闻内容')]:
+            queued = await self.send(text, decision(tool))
+            self.assertIn(f'#{number}', queued)
+            self.assertEqual(self.store.get(number).task_type, task_type)
+            advertised = {t['function']['name'] for t in self.complete.call_args.args[1]}
+            self.assertIn(tool, advertised)
+            self.assertEqual(self.complete.await_count, number)
+            await worker.run_once()
+            self.assertEqual(reply.reply_direct_text.call_args.args[1], expected)
+            status = await self.send('/task')
+            self.assertIn(f'#{number}', status)
+            self.assertIn('成功', status)
+        await self.send('刚才的新闻处理好了吗', decision('task_status'))
+        self.assertEqual(self.complete.await_count, 3)
+
+    async def test_news_commands_bypass_llm_and_track_latest(self):
+        self.runtime.complete = None
+        for i, command, task_type in [(1, '/news', TaskType.DAILY), (2, '/anime-news', TaskType.ANIME_NEWS),
+                                      (3, '每日新闻', TaskType.DAILY), (4, '动漫新闻', TaskType.ANIME_NEWS)]:
+            await self.send(command)
+            self.assertEqual(self.store.get(i).task_type, task_type)
+            self.assertIn(f'#{i}', await self.send('/task'))
+        self.complete.assert_not_awaited()
+        self.legacy.assert_not_awaited()
+
+    async def test_news_duplicate_and_multiple_tools_do_not_double_enqueue(self):
+        await self.send('今天新闻', decision('daily_news'), message_id='same-news')
+        self.assertIsNone(await self.send('今天新闻', decision('daily_news'), message_id='same-news'))
+        multi = LlmDecision(tool_calls=(ToolCall('daily_news', '{}'), ToolCall('anime_news', '{}')))
+        await self.send('两种都要', multi)
+        self.assertEqual(self.store.claim_next().task_type, TaskType.DAILY)
+        self.assertIsNone(self.store.claim_next())
+
+    async def test_anime_service_failure_sets_failed_task(self):
+        from ncatbot_assistant.drive_bot.jobs.handlers import TaskHandlers
+        reply = Mock()
+        reply.reply_direct_text = AsyncMock()
+        handlers = TaskHandlers(reply, anime_news_function=AsyncMock(side_effect=RuntimeError('missing configuration')))
+        await self.send('/anime-news')
+        worker = TaskQueueWorker(self.store, {TaskType.ANIME_NEWS: handlers.handle}, AsyncMock())
+        await worker.run_once()
+        self.assertIn('失败', await self.send('/task 1'))
+        reply.reply_direct_text.assert_not_awaited()
+
     async def test_worker_failure_is_reported_from_database(self):
         await self.send('/jm 123')
         worker = TaskQueueWorker(self.store, {TaskType.JM_DOWNLOAD: AsyncMock(side_effect=RuntimeError('upload failed'))}, AsyncMock())

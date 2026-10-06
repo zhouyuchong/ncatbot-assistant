@@ -32,14 +32,14 @@ async def complete_once(messages: list[dict[str, str]], config: dict,
     ), timeout=timeout)
     logger = config.get('logger')
     usage = getattr(response, 'usage', None)
-    if logger:
-        logger.info('LLM tool decision: calls=1 prompt_tokens=%s completion_tokens=%s',
-                    getattr(usage, 'prompt_tokens', None), getattr(usage, 'completion_tokens', None))
     if not response.choices:
         raise ValueError('Empty model response')
     message = response.choices[0].message
     calls = tuple(ToolCall(call.function.name, call.function.arguments)
                   for call in (message.tool_calls or []))
+    if logger:
+        logger.info('LLM tool decision: llm_requests=1 tool_calls=%s prompt_tokens=%s completion_tokens=%s',
+                    len(calls), getattr(usage, 'prompt_tokens', None), getattr(usage, 'completion_tokens', None))
     text = message.content or ''
     if not isinstance(text, str) or (not text.strip() and not calls):
         raise ValueError('Empty model response')

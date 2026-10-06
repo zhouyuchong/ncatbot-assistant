@@ -55,6 +55,16 @@ class LlmClientTest(IsolatedAsyncioTestCase):
         with self.assertRaises(RuntimeError):
             await self.complete(error=RuntimeError('upstream'))
 
+    async def test_logs_separate_request_and_tool_counts(self):
+        for calls, expected_count in [([], 0), ([call(name='daily_news', args='{}')], 1)]:
+            logger = Mock()
+            await self.complete(response('ok', calls), extra={'logger': logger})
+            args = logger.info.call_args.args
+            rendered = args[0] % args[1:]
+            self.assertIn('llm_requests=1', rendered)
+            self.assertIn(f'tool_calls={expected_count}', rendered)
+            self.assertNotIn('key', rendered)
+
     async def test_hard_timeout(self):
         async def hang(**kwargs):
             await asyncio.sleep(1)

@@ -76,7 +76,36 @@ class ToolTest(IsolatedAsyncioTestCase):
             await execute_tool(call, self.context)
         self.assertIsNone(self.store.claim_next())
         self.search.assert_not_awaited()
-        self.assertEqual(len(tool_schemas()), 3)
+        self.assertEqual({s['function']['name'] for s in tool_schemas()},
+                         {'jm_search', 'jm_download', 'task_status', 'daily_news', 'anime_news'})
+
+    async def test_news_tools_enqueue_empty_payload_and_track_latest_task(self):
+        await self.call('jm_download', {'album_id': 123})
+        await self.call('jm_search', {})
+        for name, task_type in [('daily_news', TaskType.DAILY), ('anime_news', TaskType.ANIME_NEWS)]:
+            with self.subTest(tool=name):
+                reply = await self.call(name, {})
+                state = self.state.get(self.key)
+                self.assertIsNotNone(state.last_task_id)
+                task = self.store.get(state.last_task_id)
+                self.assertEqual(task.task_type, task_type)
+                self.assertEqual(task.payload, {})
+                self.assertEqual((task.group_id, task.user_id), ('g1', 'u1'))
+                self.assertIsNone(state.pending_action)
+                self.assertEqual(state.last_download_task_id, 1)
+                self.assertIn(f'#{task.id}', reply.reply_text)
+                self.assertIn(f'#{task.id}', (await self.call('task_status', {})).reply_text)
+        self.search.assert_not_awaited()
+
+    async def test_news_tools_reject_unknown_arguments(self):
+        for name in ['daily_news', 'anime_news']:
+            for args in [{'topic': 'AI'}, {'user_id': 'other'}, {'date': 'yesterday'}]:
+                await self.call(name, args)
+                self.assertIsNone(self.store.claim_next())
+        schemas = {s['function']['name']: s['function']['parameters'] for s in tool_schemas()}
+        for name in ['daily_news', 'anime_news']:
+            self.assertEqual(schemas[name]['properties'], {})
+            self.assertFalse(schemas[name]['additionalProperties'])
 
     async def test_oversized_ids_are_rejected_before_storage(self):
         for name, args in [('task_status', {'task_id': 9223372036854775808}),

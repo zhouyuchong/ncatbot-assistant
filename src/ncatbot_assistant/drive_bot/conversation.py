@@ -10,7 +10,7 @@ from .intents import (ImmediateResponse, JmSearchIntent, LlmFallbackIntent,
 from .llm_client import LlmDecision, ToolCall
 from .llm_context import ConversationKey, ShortTermConversationMemory
 from .router import route_message
-from .tools import ToolExecutionContext, ToolResult, build_enqueue_reply, execute_tool, tool_schemas
+from .tools import NEWS_TOOL_TASK_TYPES, ToolExecutionContext, ToolResult, build_enqueue_reply, execute_tool, tool_schemas
 
 TOOL_SYSTEM_PROMPT = (
     '你可以通过提供的工具帮助用户办事。只有明确的操作请求才调用工具，讨论功能不调用。'
@@ -39,6 +39,7 @@ def _state_summary(runtime: ConversationRuntime, key: ConversationKey) -> str:
         'results': [{'index': i, 'album_id': item.album_id, 'title': item.title[:80]}
                     for i, item in enumerate(state.search_results, 1)],
         'last_download_task_id': state.last_download_task_id,
+        'last_task_id': state.last_task_id,
         'pending': ({'tool_name': state.pending_action.tool_name,
                      'missing_field': state.pending_action.missing_field}
                     if state.pending_action else None),
@@ -101,9 +102,15 @@ async def _handle_message_locked(text: str, key: ConversationKey,
         call = ToolCall('task_status', json.dumps({'task_id': intent.task_id} if intent.task_id else {}))
     elif isinstance(intent, QueuedTaskIntent) and intent.task_type == TaskType.JM_DOWNLOAD:
         call = ToolCall('jm_download', json.dumps(intent.payload))
+    elif isinstance(intent, QueuedTaskIntent) and intent.task_type in NEWS_TOOL_TASK_TYPES.values():
+        name = next(name for name, task_type in NEWS_TOOL_TASK_TYPES.items() if task_type == intent.task_type)
+        call = ToolCall(name, json.dumps(intent.payload))
     elif isinstance(intent, QueuedTaskIntent):
         _clear_pending(runtime, key)
         task = context.enqueue(intent)
+        state = context.state_store.get(key)
+        state.last_task_id = task.id
+        context.state_store.update(key, state)
         reply = build_enqueue_reply(task, context.task_store)
         return _remember(runtime, key, text, ToolResult(reply, reply[:500]))
     elif isinstance(intent, ImmediateResponse):

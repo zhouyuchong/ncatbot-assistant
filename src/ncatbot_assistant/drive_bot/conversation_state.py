@@ -24,6 +24,7 @@ class TaskConversationState:
     search_results: list[JmSearchItem] = field(default_factory=list)
     pending_action: PendingAction | None = None
     last_download_task_id: int | None = None
+    last_task_id: int | None = None
     updated_at: float = 0
 
 

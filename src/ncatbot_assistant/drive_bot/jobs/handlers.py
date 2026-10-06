@@ -113,14 +113,11 @@ class TaskHandlers:
     async def _handle_anime_news(self, task: TaskRecord) -> dict:
         if not self.anime_news_function:
             raise RuntimeError("未配置 anime_news_function")
-        try:
-            text = await _maybe_await(self.anime_news_function())
-            await self.reply.reply_direct_text(task, text)
-            return {"sent_text": 1, "text": text}
-        except Exception as e:
-            error_msg = f"获取动漫新闻失败：{e}"
-            await self.reply.reply_direct_text(task, error_msg)
-            return {"error": str(e)}
+        text = await _maybe_await(self.anime_news_function())
+        if not text:
+            raise RuntimeError("获取动漫新闻失败，内容为空，请稍后再试。")
+        await self.reply.reply_direct_text(task, text)
+        return {"sent_text": 1, "text": text}
 
     async def _handle_trending_paper(self, task: TaskRecord) -> dict:
         if not self.trending_paper_function:
