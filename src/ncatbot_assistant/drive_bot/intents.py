@@ -28,6 +28,11 @@ class TaskStatus(str, Enum):
 
 
 @dataclass(frozen=True)
+class TaskStatusIntent:
+    task_id: int | None = None
+
+
+@dataclass(frozen=True)
 class JmSearchIntent:
     keywords: str
 

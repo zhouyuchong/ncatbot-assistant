@@ -86,6 +86,13 @@ class DriveBotRouterTest(TestCase):
         self.assertEqual(type(intent).__name__, "JmSearchIntent")
         self.assertEqual(intent.keywords, "原神")
 
+    def test_task_query_commands(self):
+        intent = route_message("/task 42", ScopeType.PRIVATE, "u1")
+        self.assertEqual(type(intent).__name__, "TaskStatusIntent")
+        self.assertEqual(intent.task_id, 42)
+        self.assertIsNone(route_message("/task", ScopeType.PRIVATE, "u1").task_id)
+        self.assertIn("编号", route_message("/task abc", ScopeType.PRIVATE, "u1").text)
+
     def test_usage_remains_immediate(self):
         intent = route_message("帮助", scope_type=ScopeType.PRIVATE, user_id="10001")
 

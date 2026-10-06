@@ -18,6 +18,9 @@ class CommandSpec:
 
 
 COMMAND_SPECS: tuple[CommandSpec, ...] = (
+    CommandSpec(name="task", title="任务状态", usage="/task [任务编号]",
+                description="查询当前会话中自己的任务；省略编号查询最近下载",
+                slash_aliases=("/task",), category="other"),
     CommandSpec(
         name="help",
         title="帮助",

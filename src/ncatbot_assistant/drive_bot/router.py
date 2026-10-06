@@ -6,6 +6,7 @@ from .commands import slash_aliases, text_aliases
 from .intents import (
     ImmediateResponse,
     JmSearchIntent,
+    TaskStatusIntent,
     LlmFallbackIntent,
     QueuedTaskIntent,
     ScopeType,
@@ -30,6 +31,14 @@ def route_message(
 
     if _matches_slash_command(text, "profile"):
         return ShowUserProfileIntent()
+
+    task_match = _match_slash_with_args(text, "task", require_args=False)
+    if task_match is not None:
+        if not task_match.strip():
+            return TaskStatusIntent()
+        if re.fullmatch(r"[0-9]+", task_match.strip()) and int(task_match.strip()) > 0:
+            return TaskStatusIntent(task_id=int(task_match.strip()))
+        return ImmediateResponse("任务编号必须是正整数，例如 /task 42。")
 
     jm_match = _match_slash_with_args(text, "jm", require_args=True)
     if jm_match:
