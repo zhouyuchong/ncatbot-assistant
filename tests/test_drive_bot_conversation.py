@@ -72,6 +72,15 @@ class ConversationTest(IsolatedAsyncioTestCase):
         self.assertIn('成功', await self.send('完成了吗', decision('task_status')))
         self.assertEqual(self.complete.await_count, 3)
 
+    async def test_worker_failure_is_reported_from_database(self):
+        await self.send('/jm 123')
+        worker = TaskQueueWorker(self.store, {TaskType.JM_DOWNLOAD: AsyncMock(side_effect=RuntimeError('upload failed'))}, AsyncMock())
+        await worker.run_once()
+        reply = await self.send('/task 1')
+        self.assertIn('失败', reply)
+        self.assertNotIn('upload failed', reply)
+        self.complete.assert_not_awaited()
+
     async def test_pending_followup_topic_change_and_llm_failure(self):
         await self.send('帮我找', decision('jm_search'))
         self.assertIsNotNone(self.states.get(self.key).pending_action)

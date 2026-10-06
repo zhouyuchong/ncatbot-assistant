@@ -25,7 +25,7 @@ def build_drive_bot_usage() -> str:
             aliases = _format_aliases(spec.text_aliases)
             lines.append(f"- {spec.usage}: {spec.description}{aliases}")
         lines.append("")
-    lines.append("未命中命令时，直接发送文字即可与我闲聊。")
+    lines.append("也可以说“搜索原神的本子”“下载第二个”“刚才下载好了吗”；其他业务请使用命令。群聊每条仍需 @ Bot。")
     return "\n".join(lines).strip()
 
 

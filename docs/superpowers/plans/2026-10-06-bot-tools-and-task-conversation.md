@@ -181,11 +181,11 @@ async def handle_conversation_message(text: str, key: ConversationKey,
 
 **Interfaces:** 产出 `JmSearchItem`、`search_items()`、`JmSearchIntent`；`route_message()` 不再调用同步搜索回调，插件在线程中执行搜索意图。
 
-- [ ] 写失败测试：`test_search_items_preserves_ids_and_order` 验证结果 ID 与顺序；`test_search_limits_to_ten` 验证 10 条上限；`test_jm_keywords_returns_search_intent` 验证路由无网络副作用；保留数字 ID 入队测试。
-- [ ] 执行 `uv run python -m unittest tests.test_drive_bot_jm_search tests.test_drive_bot_router`，确认新增断言失败。
-- [ ] 实现结构化搜索、序号展示和字符串包装兼容；用 `asyncio.to_thread` 执行同步 JM 客户端搜索。
-- [ ] 重跑上述测试及 `tests.test_drive_bot_handlers`，确认通过。
-- [ ] 提交本任务：`feat: return structured JM search results`。
+- [x] 写失败测试：`test_search_items_preserves_ids_and_order` 验证结果 ID 与顺序；`test_search_limits_to_ten` 验证 10 条上限；`test_jm_keywords_returns_search_intent` 验证路由无网络副作用；保留数字 ID 入队测试。
+- [x] 执行 `uv run python -m unittest tests.test_drive_bot_jm_search tests.test_drive_bot_router`，确认新增断言失败。
+- [x] 实现结构化搜索、序号展示和字符串包装兼容；用 `asyncio.to_thread` 执行同步 JM 客户端搜索。
+- [x] 重跑上述测试及 `tests.test_drive_bot_handlers`，确认通过。
+- [x] 提交本任务：`feat: return structured JM search results`。
 
 ## Task 2：会话状态及受限任务查询
 
@@ -193,11 +193,11 @@ async def handle_conversation_message(text: str, key: ConversationKey,
 
 **Interfaces:** 产出 `TaskConversationState`、`PendingAction`、`TaskConversationStateStore` 和 `TaskStore.get_for_conversation()`；复用 `ConversationKey`。
 
-- [ ] 写失败测试：不同用户/群/私聊隔离；15 分钟边界过期；1000 会话容量淘汰；返回状态副本不意外污染存储；去重 15 分钟及 2000 条容量；跨用户/跨群查询返回 None；重启模拟后临时结果不存在但指定任务编号仍可查询。
-- [ ] 执行 `uv run python -m unittest tests.test_drive_bot_conversation_state tests.test_drive_bot_storage`，确认新增断言失败。
-- [ ] 实现状态存储、可注入时钟、同会话异步锁及消息去重；查询 SQL 同时限定 scope_type、group_id、user_id。
-- [ ] 重跑上述测试，确认通过。
-- [ ] 提交本任务：`feat: track task conversations and scoped task lookup`。
+- [x] 写失败测试：不同用户/群/私聊隔离；15 分钟边界过期；1000 会话容量淘汰；返回状态副本不意外污染存储；去重 15 分钟及 2000 条容量；跨用户/跨群查询返回 None；重启模拟后临时结果不存在但指定任务编号仍可查询。
+- [x] 执行 `uv run python -m unittest tests.test_drive_bot_conversation_state tests.test_drive_bot_storage`，确认新增断言失败。
+- [x] 实现状态存储、可注入时钟、同会话异步锁及消息去重；查询 SQL 同时限定 scope_type、group_id、user_id。
+- [x] 重跑上述测试，确认通过。
+- [x] 提交本任务：`feat: track task conversations and scoped task lookup`。
 
 ## Task 3：确定性工具执行与任务查询命令
 
@@ -205,12 +205,12 @@ async def handle_conversation_message(text: str, key: ConversationKey,
 
 **Interfaces:** 产出三项工具的 `tool_schemas()`、`ToolExecutionContext`、`ToolResult`、`execute_tool()` 和 `TaskStatusIntent`；使用 Task 1 搜索数据、Task 2 状态和查询接口，入队委托现有回调。
 
-- [ ] 写失败测试：序号 2 精确映射第二条 ID；无结果/越界不入队；缺关键词设置待办；ID 与序号同时出现拒绝；未知工具/参数、坏 JSON、bool/负数拒绝；新搜索失败或为空清空旧结果；查询每次读取最新状态，不能看到他人任务。
-- [ ] 增加 `/task`、`/task 42`、非法任务编号的路由测试；无最近任务时提示提供编号。
-- [ ] 执行 `uv run python -m unittest tests.test_drive_bot_tools tests.test_drive_bot_router`，确认新增断言失败。
-- [ ] 实现参数验证、固定追问、序号解析、入队回复及所有 TaskStatus 的确定性展示；没有百分比数据时不编造进度。
-- [ ] 重跑上述测试，确认通过。
-- [ ] 提交本任务：`feat: execute validated tools and query task status`。
+- [x] 写失败测试：序号 2 精确映射第二条 ID；无结果/越界不入队；缺关键词设置待办；ID 与序号同时出现拒绝；未知工具/参数、坏 JSON、bool/负数拒绝；新搜索失败或为空清空旧结果；查询每次读取最新状态，不能看到他人任务。
+- [x] 增加 `/task`、`/task 42`、非法任务编号的路由测试；无最近任务时提示提供编号。
+- [x] 执行 `uv run python -m unittest tests.test_drive_bot_tools tests.test_drive_bot_router`，确认新增断言失败。
+- [x] 实现参数验证、固定追问、序号解析、入队回复及所有 TaskStatus 的确定性展示；没有百分比数据时不编造进度。
+- [x] 重跑上述测试，确认通过。
+- [x] 提交本任务：`feat: execute validated tools and query task status`。
 
 ## Task 4：单次 LLM 决策接口与成本配置
 
@@ -218,12 +218,12 @@ async def handle_conversation_message(text: str, key: ConversationKey,
 
 **Interfaces:** 产出 `ToolCall`、`LlmDecision`、`complete_once()`；沿用项目 LLM 配置合并，增加 enabled 与 timeout_seconds。
 
-- [ ] 写失败测试：正常文本、单工具、多工具、坏参数 JSON、空响应；mock `litellm.acompletion` 断言每次只调用一次，tools 正确透传、自动重试关闭、超时 30 秒；错误没有第二次降级调用；usage 缺失不影响返回。
-- [ ] 配置测试验证默认值、关闭工具及非正超时回退默认值；请求参数沿用当前模型和 short token 上限。
-- [ ] 执行 `uv run python -m unittest tests.test_drive_bot_llm_client tests.test_drive_bot_config`，确认新增断言失败。
-- [ ] 实现异步 completion 调用及响应解析，保留完整工具参数交由执行器校验；本地检查实际 LiteLLM 接口，若需查文档使用官方文档，不发付费探测请求。
-- [ ] 重跑上述测试，确认通过。
-- [ ] 提交本任务：`feat: add single-call LLM tool decisions`。
+- [x] 写失败测试：正常文本、单工具、多工具、坏参数 JSON、空响应；mock `litellm.acompletion` 断言每次只调用一次，tools 正确透传、自动重试关闭、超时 30 秒；错误没有第二次降级调用；usage 缺失不影响返回。
+- [x] 配置测试验证默认值、关闭工具及非正超时回退默认值；请求参数沿用当前模型和 short token 上限。
+- [x] 执行 `uv run python -m unittest tests.test_drive_bot_llm_client tests.test_drive_bot_config`，确认新增断言失败。
+- [x] 实现异步 completion 调用及响应解析，保留完整工具参数交由执行器校验；本地检查实际 LiteLLM 接口，若需查文档使用官方文档，不发付费探测请求。
+- [x] 重跑上述测试，确认通过。
+- [x] 提交本任务：`feat: add single-call LLM tool decisions`。
 
 ## Task 5：接通连续办事流程
 
@@ -231,23 +231,23 @@ async def handle_conversation_message(text: str, key: ConversationKey,
 
 **Interfaces:** 产出 `ConversationRuntime`、`handle_conversation_message()`；消费前四项接口及现有入队/历史能力。插件将 QQ message_id 和 ConversationKey 传入协调器。
 
-- [ ] 写失败测试：命令搜索后自然语言选择下载；自然语言搜索→下载第二个→查询状态；缺关键词追问→补全；用户转话题撤销待办；只讨论功能时 mock 模型返回聊天，不执行工具。
-- [ ] 写成本和可靠性测试：明确命令零 LLM 调用、自然语言一次调用、工具结果无第二次调用；摘要不超过 1500/500 字符；多工具整条拒绝；文字加工具时忽略未验证文字；重复 message_id 只入队一次；同会话并发顺序一致、不同会话不互相阻塞。
-- [ ] 写重启/过期测试：选择结果失效后不下载；指定任务编号仍查询真实状态；LLM 失败保留可恢复的待办且不执行工具。
-- [ ] 执行 `uv run python -m unittest tests.test_drive_bot_conversation tests.test_drive_bot_llm_context`，确认新增断言失败。
-- [ ] 实现协调流程；统一命令和工具的结果状态记录，下载成功入队后保存真实 ID，记录精简历史；工具关闭时沿用原聊天路径。其他命令清除待办但仍正常执行。
-- [ ] 重跑上述测试，并运行 `uv run python -m unittest discover tests`，确认通过。
-- [ ] 提交本任务：`feat: connect tools to multi-turn task conversations`。
+- [x] 写失败测试：命令搜索后自然语言选择下载；自然语言搜索→下载第二个→查询状态；缺关键词追问→补全；用户转话题撤销待办；只讨论功能时 mock 模型返回聊天，不执行工具。
+- [x] 写成本和可靠性测试：明确命令零 LLM 调用、自然语言一次调用、工具结果无第二次调用；摘要不超过 1500/500 字符；多工具整条拒绝；文字加工具时忽略未验证文字；重复 message_id 只入队一次；同会话并发顺序一致、不同会话不互相阻塞。
+- [x] 写重启/过期测试：选择结果失效后不下载；指定任务编号仍查询真实状态；LLM 失败保留可恢复的待办且不执行工具。
+- [x] 执行 `uv run python -m unittest tests.test_drive_bot_conversation tests.test_drive_bot_llm_context`，确认新增断言失败。
+- [x] 实现协调流程；统一命令和工具的结果状态记录，下载成功入队后保存真实 ID，记录精简历史；工具关闭时沿用原聊天路径。其他命令清除待办但仍正常执行。
+- [x] 重跑上述测试，并运行 `uv run python -m unittest discover tests`，确认通过。
+- [x] 提交本任务：`feat: connect tools to multi-turn task conversations`。
 
 ## Task 6：使用说明与完整验收
 
 **Files:** 修改 `readme.md`、`plugins/drive_bot/README.md`、`usage.py`；检查 `config.example.yaml`。
 
-- [ ] 文档说明自然语言流程、序号选择、`/task`、15 分钟临时状态、重启行为、成本上限、工具开关以及首期支持范围。
-- [ ] 在 mock 集成测试中走完整流程：搜索两条结果→选择第二条→入队→worker 更新成功→查询返回成功；失败任务返回真实失败状态。
-- [ ] 运行 `uv run python -m unittest discover tests`，要求所有测试通过。
-- [ ] 运行 `git diff --check`，要求无空白错误；检查 diff 不含配置凭据和真实聊天数据。
-- [ ] 将验证结果补充到本计划；提交本任务：`docs: explain tool-based task conversations`。
+- [x] 文档说明自然语言流程、序号选择、`/task`、15 分钟临时状态、重启行为、成本上限、工具开关以及首期支持范围。
+- [x] 在 mock 集成测试中走完整流程：搜索两条结果→选择第二条→入队→worker 更新成功→查询返回成功；失败任务返回真实失败状态。
+- [x] 运行 `uv run python -m unittest discover tests`，要求所有测试通过。
+- [x] 运行 `git diff --check`，要求无空白错误；检查 diff 不含配置凭据和真实聊天数据。
+- [x] 将验证结果补充到本计划；提交本任务：`docs: explain tool-based task conversations`。
 
 ## 验收与后续范围
 
@@ -263,5 +263,16 @@ async def handle_conversation_message(text: str, key: ConversationKey,
 - [x] 每个设计要求已映射到任务和对应验证。
 - [x] 接口名称与任务依赖一致；Review Focus 五项均有测试归属。
 - [x] 计划仅新增文档，业务实现尚未开始。
-- [ ] 用户评审计划。
-- [ ] 开始实施并记录验证结果。
+- [x] 用户评审计划。
+- [x] 开始实施并记录验证结果。
+
+### 实施验证（2026-10-06）
+
+- 六项任务已完成，实现落在 `codex/smarter-bot-interaction`。
+- `uv` 受沙箱缓存权限及 macOS 系统配置崩溃影响，改用已有 `.venv/bin/python`，未安装依赖。
+- `.venv/bin/python -m unittest discover tests`：102 个测试通过（独立审查前）。
+- `git diff --check`：通过。
+- 数据类型 `ToolCall` / `LlmDecision` 提前在 Task 3 定义，以满足工具执行接口；网络实现仍在 Task 4。
+- 搜索、LLM 与 worker 外部执行均使用 mock；任务状态与归属查询使用真实临时 SQLite。未调用真实付费 API 或进行真实下载。
+- 临时状态、过期、参数补全、序号下载、实时查询、失败任务、去重、并发隔离和调用次数均有自动化验证。
+- 待最终独立代码审查后补充审查结果。

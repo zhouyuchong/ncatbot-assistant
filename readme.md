@@ -11,10 +11,28 @@
 - `/dailyai`：读取本地指定的 Markdown 论文数据，利用 LLM 生成今日 AI 技术看点；兼容整句 `每日ai`。
 - `/anime-news`：读取已配置的动漫新闻文件并发送；兼容整句 `动漫新闻`。
 - `/profile`：查看当前用户画像 prompt。
+- `/task [任务编号]`：查询当前会话中自己的任务，省略编号查询最近下载任务。
+- 自然语言办事：支持 JM 搜索、选择结果下载和查询任务状态，例如“搜索原神的本子”“下载第二个”“刚才下载好了吗”。
 - `使用方法`、`帮助`、`help`、`/help`：返回插件命令说明。
 - 未命中命令的普通聊天：调用 OpenAI-compatible Chat Completion 兜底回复。
 - LLM 短期上下文：按私聊用户或群聊内 `group_id + user_id` 保存最近 N 轮对话，让连续聊天能承接前文。
 - 后台任务队列：下载、上传和图片处理进入 SQLite-backed 单 worker 队列，避免阻塞普通消息响应。
+
+## 连续对话办事
+
+群聊每次仍需 @ Bot，私聊直接发送。例如：
+
+```text
+搜索原神的本子
+下载第二个
+刚才下载好了吗？
+```
+
+搜索结果显示序号和资源 ID。“第二个”由程序从当前搜索结果取 ID，下载进入原有后台队列。任务查询从 SQLite 读取真实状态，仅能查看当前群聊/私聊中属于自己的任务。
+
+明确命令不调用 LLM。启用工具时，每条普通消息最多一次 LLM 请求，工具结果由程序回复，不额外调用模型润色，也不自动重试。工具描述会增加输入 token；调用日志会记录服务端返回的 token usage（可用时）。本期只有 JM 搜索、下载和任务查询支持自然语言工具，其他业务继续使用命令。
+
+搜索结果、待补充参数和最近下载任务编号保存在内存中，15 分钟无状态更新后失效，重启清空。失效后请重新搜索，或用 `/task 42` 查询已持久化的任务。搜索失败或无结果会清除旧搜索结果。详细配置见 [Drive Bot 使用说明](plugins/drive_bot/README.md)。
 
 ## 项目结构
 
@@ -55,6 +73,9 @@ llm:
   max_tokens: 800
   short_conversation_max_tokens: 800
   long_conversation_max_tokens: 4000
+  tools:
+    enabled: true
+    timeout_seconds: 30
   context:
     enabled: true
     max_turns: 6
