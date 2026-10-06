@@ -49,6 +49,31 @@ class LlmClientTest(IsolatedAsyncioTestCase):
             self.assertEqual(decision.tool_calls[0].arguments_json, calls[0].function.arguments)
             self.assertEqual(api.await_count, 1)
 
+    async def test_deepseek_v4_disables_thinking_for_summary_history(self):
+        messages = [{'role': 'user', 'content': '搜索'},
+                    {'role': 'assistant', 'content': '找到 10 个结果'},
+                    {'role': 'user', 'content': '第九个'}]
+
+        async def provider(**kwargs):
+            # Model the documented DeepSeek thinking/tools history requirement.
+            if kwargs.get('extra_body', {}).get('thinking', {}).get('type') != 'disabled':
+                raise ValueError('reasoning_content must be passed back')
+            return response(calls=[call(args='{"result_index":9}')])
+
+        for model in ['deepseek-v4-flash', 'openai/deepseek-v4-pro',
+                      'deepseek/deepseek-v4-flash', 'deepseek-flash', 'deepseek-pro']:
+            api = AsyncMock(side_effect=provider)
+            with patch.dict(sys.modules, {'litellm': types.SimpleNamespace(acompletion=api)}):
+                result = await llm_client.complete_once(messages, {'model': model}, [{'type': 'function'}])
+            self.assertEqual(result.tool_calls[0].arguments_json, '{"result_index":9}')
+            self.assertEqual(api.await_count, 1)
+            self.assertEqual(api.call_args.kwargs['messages'], messages)
+
+    async def test_other_models_do_not_receive_deepseek_extension(self):
+        for model in ['test', 'openai/gpt-4o', 'deepseek-chat', 'deepseek-reasoner']:
+            _, api = await self.complete(response('ok'), extra={'model': model})
+            self.assertNotIn('extra_body', api.call_args.kwargs)
+
     async def test_empty_and_errors_do_not_retry(self):
         with self.assertRaises(ValueError):
             await self.complete(response())
@@ -73,6 +98,21 @@ class LlmClientTest(IsolatedAsyncioTestCase):
             with self.assertRaises(TimeoutError):
                 await llm_client.complete_once([], {'model': 'test', 'timeout_seconds': .01}, [])
         self.assertEqual(api.await_count, 1)
+
+
+class FailureDetailsTest(TestCase):
+    def test_safe_categories(self):
+        for status, reason in [(400, 'invalid_request'), (401, 'authentication'),
+                               (403, 'authentication'), (429, 'rate_limit'),
+                               (503, 'upstream_error'), (None, 'unknown')]:
+            error = RuntimeError('sk-secret; private request body')
+            error.status_code = status
+            self.assertEqual(llm_client.failure_details(error), ('RuntimeError', status, reason))
+        self.assertEqual(llm_client.failure_details(TimeoutError())[2], 'timeout')
+        self.assertEqual(llm_client.failure_details(ValueError('Empty model response'))[2], 'empty_response')
+        error = RuntimeError('secret')
+        error.status_code = 'private status'
+        self.assertIsNone(llm_client.failure_details(error)[1])
 
 
 class ToolConfigTest(TestCase):

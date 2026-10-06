@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from .intents import (ImmediateResponse, JmSearchIntent, LlmFallbackIntent,
                       QueuedTaskIntent, ShowUserProfileIntent, TaskStatusIntent, TaskType)
-from .llm_client import LlmDecision, ToolCall
+from .llm_client import LlmDecision, ToolCall, failure_details
 from .llm_context import ConversationKey, ShortTermConversationMemory
 from .router import route_message
 from .tools import NEWS_TOOL_TASK_TYPES, ToolExecutionContext, ToolResult, build_enqueue_reply, execute_tool, tool_schemas
@@ -133,8 +133,9 @@ async def _handle_message_locked(text: str, key: ConversationKey,
                 {'role': 'user', 'content': text.strip()}]
     try:
         decision = await runtime.complete(messages, tool_schemas())
-    except Exception:
-        context.logger.warning('LLM 工具决策失败')
+    except Exception as error:
+        context.logger.warning('LLM 工具决策失败: error_type=%s status=%s reason=%s',
+                               *failure_details(error))
         # Preserve pending state on transient failures, and never expose raw exceptions.
         return _remember(runtime, key, text, ToolResult(
             'AI 暂时不可用，请稍后重试；也可以使用 /jm 或 /task 命令。', '本次 AI 请求失败，未执行操作。'))

@@ -151,6 +151,8 @@ Bot：查询任务 #47。
 
 每日新闻生成摘要时仍会使用已有 LLM 摘要服务，因此自然语言新闻请求通常包含一次决策请求和一次摘要请求；`/news` 可以省去决策请求。动漫新闻读取文件，图片获取与上传本身不调用 LLM。
 
+DeepSeek V4（`deepseek-v4-*`，以及 `deepseek-flash` / `deepseek-pro`）的工具决策请求显式关闭思考模式。当前会话保存精简文字摘要，不保存或回传思维链；非思考模式可避免后续轮次缺少 `reasoning_content` 的兼容性错误，并减少决策 token 开销。此设置只作用于工具决策服务。
+
 成功解析模型响应后，可以看到类似日志：
 
 ```text
@@ -162,3 +164,11 @@ Queued image tool: tool=setu task_id=45
 ```
 
 `tool_calls` 是模型返回的工具调用数量，不等于已经执行的数量。实际入队日志和任务编号才能确认新闻或图片任务已经创建；完成与否通过任务状态确认。
+
+决策失败时日志记录异常类型、HTTP 状态和固定错误分类，例如：
+
+```text
+LLM 工具决策失败: error_type=BadRequestError status=400 reason=reasoning_history_required
+```
+
+日志不输出原始异常正文、API Key 或对话内容；失败不自动重试，也不执行工具。`reasoning_history_required` 表示异常正文提到 `reasoning_content`，其他常见分类包括 `timeout`、`authentication`、`rate_limit`、`invalid_request`、`upstream_error`、`empty_response` 和 `unknown`。

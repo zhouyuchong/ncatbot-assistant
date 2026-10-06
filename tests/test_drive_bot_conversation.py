@@ -1,14 +1,16 @@
 import asyncio
 import json
+import sys
+import types
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import IsolatedAsyncioTestCase
-from unittest.mock import AsyncMock, Mock
+from unittest.mock import AsyncMock, Mock, patch
 import tests.bootstrap
 from ncatbot_assistant.drive_bot.conversation import ConversationRuntime, handle_conversation_message
 from ncatbot_assistant.drive_bot.conversation_state import TaskConversationStateStore
 from ncatbot_assistant.drive_bot.llm_context import ConversationKey, ShortTermConversationMemory
-from ncatbot_assistant.drive_bot.llm_client import ToolCall, LlmDecision
+from ncatbot_assistant.drive_bot.llm_client import ToolCall, LlmDecision, complete_once
 from ncatbot_assistant.drive_bot.tools import ToolExecutionContext
 from ncatbot_assistant.drive_bot.storage import TaskStore
 from ncatbot_assistant.drive_bot.services.jm import JmSearchItem
@@ -204,6 +206,60 @@ class ConversationTest(IsolatedAsyncioTestCase):
         await self.send('搜索', decision('jm_search'))
         await self.send('/help')
         self.assertIsNone(self.states.get(self.key).pending_action)
+
+    async def test_llm_failure_logs_safe_diagnostics_without_retry_or_operation(self):
+        class BadRequestError(Exception):
+            status_code = 400
+
+        await self.send('/jm 原神')
+        self.complete.side_effect = BadRequestError(
+            'reasoning_content must be passed back; sk-secret; private user message')
+        reply = await self.send('第九个')
+        self.assertIn('AI 暂时不可用', reply)
+        self.assertEqual(self.complete.await_count, 1)
+        self.assertIsNone(self.store.claim_next())
+        args = self.context.logger.warning.call_args.args
+        log = args[0] % args[1:]
+        self.assertIn('BadRequestError', log)
+        self.assertIn('status=400', log)
+        self.assertIn('reason=reasoning_history_required', log)
+        self.assertNotIn('sk-secret', log)
+        self.assertNotIn('private user message', log)
+
+    async def test_deepseek_setu_chat_and_search_ninth_followups(self):
+        def model_response(text='', name=None, args=None):
+            calls = ([types.SimpleNamespace(function=types.SimpleNamespace(
+                name=name, arguments=json.dumps(args or {})))] if name else [])
+            return types.SimpleNamespace(choices=[types.SimpleNamespace(
+                message=types.SimpleNamespace(content=text, tool_calls=calls))])
+
+        responses = iter([
+            model_response(name='setu', args={'tags': ['黑丝']}),
+            model_response(text='谢谢'),
+            model_response(name='jm_search', args={'keywords': '申鹤 原神'}),
+            model_response(name='jm_download', args={'result_index': 9}),
+        ])
+
+        async def provider(**kwargs):
+            if any(m['role'] == 'assistant' for m in kwargs['messages']):
+                if kwargs.get('extra_body', {}).get('thinking', {}).get('type') != 'disabled':
+                    raise ValueError('reasoning_content must be passed back')
+            return next(responses)
+
+        async def complete(messages, tools):
+            return await complete_once(messages, {'model': 'deepseek-v4-flash'}, tools)
+
+        self.runtime.complete = complete
+        self.search.return_value = [JmSearchItem(100 + i, f'结果 {i}') for i in range(1, 11)]
+        api = AsyncMock(side_effect=provider)
+        with patch.dict(sys.modules, {'litellm': types.SimpleNamespace(acompletion=api)}):
+            self.assertIn('#1', await self.send('来点黑丝涩图'))
+            self.assertEqual(await self.send('干得好'), '谢谢')
+            await self.send('来点原神申鹤的本子')
+            self.assertIn('#2', await self.send('第九个'))
+        self.assertEqual(api.await_count, 4)
+        self.assertEqual(self.store.get(1).payload, {'tags': ['黑丝']})
+        self.assertEqual(self.store.get(2).payload, {'album_id': 109})
 
     async def test_discussion_multiple_calls_and_untrusted_model_text(self):
         await self.send('下载功能有点慢', LlmDecision(text='可以看看排队情况'))
