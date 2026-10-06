@@ -38,6 +38,9 @@ llm:
   max_tokens: 800
   short_conversation_max_tokens: 800
   long_conversation_max_tokens: 4000
+  tools:
+    enabled: true
+    timeout_seconds: 30
   context:
     enabled: true
     max_turns: 6
