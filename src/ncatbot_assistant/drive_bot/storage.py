@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .intents import ScopeType, TaskRecord, TaskStatus, TaskType
+from .llm_context import ConversationKey
 
 
 class TaskStore:
@@ -80,6 +81,15 @@ class TaskStore:
         if row is None:
             raise KeyError(f"task {task_id} not found")
         return self._row_to_task(row)
+
+    def get_for_conversation(self, task_id: int, key: ConversationKey) -> TaskRecord | None:
+        with self._managed_connection() as conn:
+            row = conn.execute(
+                "SELECT * FROM tasks WHERE id = ? AND scope_type = ? "
+                "AND user_id = ? AND group_id IS ?",
+                (task_id, key.scope_type.value, key.user_id, key.group_id),
+            ).fetchone()
+        return self._row_to_task(row) if row is not None else None
 
     def claim_next(self) -> TaskRecord | None:
         now = time.time()
