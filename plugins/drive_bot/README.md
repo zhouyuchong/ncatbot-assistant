@@ -2,7 +2,7 @@
 
 Drive Bot 支持在 QQ 群聊和私聊中处理资源搜索、文件上传和每日新闻。
 
-当消息没有命中下方已有命令或整句别名时，Bot 会使用 OpenAI-compatible Chat Completion 做兜底回复。推荐复制 `config.example.yaml` 为 `config.yaml` 并填写顶层 `llm` 配置：
+当消息没有命中下方已有命令或整句别名时，Bot 会使用 OpenAI-compatible Chat Completion 判断是普通聊天还是工具请求。推荐复制 `config.example.yaml` 为 `config.yaml` 并填写顶层 `llm` 配置：
 
 ```yaml
 llm:
@@ -24,6 +24,22 @@ llm:
 `fake-api-key` 仅用于离线测试；实际使用时请改为可用的 API Key。
 
 AI 兜底会自动加载 `resources/skills/neko_prompt_r18.md`，把其中的角色 prompt 注入 system message。这个 prompt 影响普通聊天的回复风格，不安装依赖，也不写入长期记忆。
+
+## 触发用例速查
+
+群聊每条消息都需要 @ Bot，私聊直接发送。自然语言示例由模型判断意图，不是固定关键词规则。
+
+| 能力 | 明确入口 | 自然语言请求 |
+| --- | --- | --- |
+| JM 搜索 | `/jm 原神` | `搜索原神的本子` |
+| JM 下载 | `/jm 123456` | `下载第二个`（需要当前搜索结果） |
+| 每日新闻 | `/news`、整句 `每日新闻` | `今天有什么新闻吗` |
+| 动漫新闻 | `/anime-news`、整句 `动漫新闻` | `最近有什么动漫新闻` |
+| 随机涩图 | `/setu` | `涩图`、`来张涩图` |
+| 带标签涩图 | `/setu 猫耳 蓝发` | `来张猫耳蓝发的涩图` |
+| 查询任务 | `/task`、`/task 42` | `完成了吗`、`查一下任务 42` |
+
+完整对话与错误场景见 [触发与连续对话用例](../../docs/usage-examples.md)。例如“来张猫耳的涩图”表示索取图片，而“这个涩图功能怎么用”应作为功能讨论；仅包含关键词不代表要创建任务。
 
 ## LLM 短期上下文
 

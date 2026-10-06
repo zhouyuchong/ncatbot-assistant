@@ -12,6 +12,10 @@
 
 **Branch:** `codex/smarter-bot-interaction`，从 `main` 的 `b541edf` 创建。
 
+## 当前使用文档
+
+首期设计和后续扩展记录保留在本文件。当前完整触发用例、连续对话、限制和日志解释见 [Drive Bot 触发与连续对话用例](../../usage-examples.md)。项目入口和配置见 [项目 README](../../../readme.md) 与 [插件 README](../../../plugins/drive_bot/README.md)。
+
 ## Global Constraints
 
 - Python 3.12+，复用已有依赖，不引入 Agent 框架或向量数据库。
@@ -313,3 +317,5 @@ async def handle_conversation_message(text: str, key: ConversationKey,
 setu 工具扩展已完成只读代码审查，未发现新的需修复问题；语法检查和 diff 空白检查通过。
 
 用户进一步指定 setu 自然语言入口围绕“涩图”请求：工具描述和帮助示例改为“涩图”“来张涩图”“来张 xxx 的涩图”，按请求提取标签。仅提到或讨论该词不要求执行工具；不增加额外关键词识别 LLM 请求。
+
+已补充当前触发用例指南和两份 README 的用例入口，包括新闻、动漫新闻、涩图、资源选择、参数补全、最近任务与明确编号查询。
