@@ -77,7 +77,34 @@ class ToolTest(IsolatedAsyncioTestCase):
         self.assertIsNone(self.store.claim_next())
         self.search.assert_not_awaited()
         self.assertEqual({s['function']['name'] for s in tool_schemas()},
-                         {'jm_search', 'jm_download', 'task_status', 'daily_news', 'anime_news'})
+                         {'jm_search', 'jm_download', 'task_status', 'daily_news', 'anime_news', 'setu'})
+
+    async def test_setu_tags_and_random_requests_create_scoped_tasks(self):
+        for i, args, expected in [(1, {'tags': [' 猫耳 ', '蓝发']}, ['猫耳', '蓝发']),
+                                  (2, {}, []), (3, {'tags': []}, []),
+                                  (4, {'tags': ['a', 'b', 'c']}, ['a', 'b', 'c']),
+                                  (5, {'tags': ['猫耳']}, ['猫耳'])]:
+            await self.call('jm_search', {})
+            result = await self.call('setu', args)
+            task = self.store.get(i)
+            self.assertEqual(task.task_type, TaskType.SETU)
+            self.assertEqual(task.payload, {'tags': expected})
+            self.assertEqual((task.group_id, task.user_id), ('g1', 'u1'))
+            self.assertIn(f'#{i}', result.reply_text)
+            self.assertEqual(self.state.get(self.key).last_task_id, i)
+            self.assertIsNone(self.state.get(self.key).pending_action)
+        self.search.assert_not_awaited()
+
+    async def test_setu_rejects_bad_tags_before_enqueue(self):
+        for args in [{'tags': ['a', 'b', 'c', 'd']}, {'tags': 'cat'}, {'tags': None},
+                     {'tags': [123]}, {'tags': [True]}, {'tags': ['']}, {'tags': ['  ']},
+                     {'tags': [['cat']]}, {'tags': ['cat'], 'user_id': 'other'}, {'count': 2}]:
+            with self.subTest(args=args):
+                await self.call('setu', args)
+                self.assertIsNone(self.store.claim_next())
+        schema = next(t['function']['parameters'] for t in tool_schemas() if t['function']['name'] == 'setu')
+        self.assertEqual(schema['properties']['tags']['maxItems'], 3)
+        self.assertEqual(schema['properties']['tags']['items']['type'], 'string')
 
     async def test_news_tools_enqueue_empty_payload_and_track_latest_task(self):
         await self.call('jm_download', {'album_id': 123})

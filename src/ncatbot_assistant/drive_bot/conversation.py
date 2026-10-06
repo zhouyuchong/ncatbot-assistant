@@ -102,6 +102,8 @@ async def _handle_message_locked(text: str, key: ConversationKey,
         call = ToolCall('task_status', json.dumps({'task_id': intent.task_id} if intent.task_id else {}))
     elif isinstance(intent, QueuedTaskIntent) and intent.task_type == TaskType.JM_DOWNLOAD:
         call = ToolCall('jm_download', json.dumps(intent.payload))
+    elif isinstance(intent, QueuedTaskIntent) and intent.task_type == TaskType.SETU:
+        call = ToolCall('setu', json.dumps(intent.payload))
     elif isinstance(intent, QueuedTaskIntent) and intent.task_type in NEWS_TOOL_TASK_TYPES.values():
         name = next(name for name, task_type in NEWS_TOOL_TASK_TYPES.items() if task_type == intent.task_type)
         call = ToolCall(name, json.dumps(intent.payload))

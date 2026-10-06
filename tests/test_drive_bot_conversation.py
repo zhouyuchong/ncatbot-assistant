@@ -72,6 +72,59 @@ class ConversationTest(IsolatedAsyncioTestCase):
         self.assertIn('成功', await self.send('完成了吗', decision('task_status')))
         self.assertEqual(self.complete.await_count, 3)
 
+    async def test_setu_natural_request_runs_existing_upload_handler(self):
+        from ncatbot_assistant.drive_bot.jobs.handlers import TaskHandlers
+        reply = Mock()
+        reply.upload_files = AsyncMock()
+        get_url = AsyncMock(return_value=(True, 'https://example.com/picture.jpg'))
+        download = AsyncMock(return_value=True)
+        deleted = Mock()
+        handlers = TaskHandlers(reply, setu_get_url=get_url, setu_download_image=download,
+                                image_dir=self.temp.name, delete_file=deleted)
+        queued = await self.send('来张猫耳蓝发插画', decision('setu', tags=['猫耳', '蓝发']))
+        self.assertIn('#1', queued)
+        self.assertEqual(self.complete.await_count, 1)
+        self.assertIn('setu', {t['function']['name'] for t in self.complete.call_args.args[1]})
+        self.assertEqual(self.store.get(1).payload, {'tags': ['猫耳', '蓝发']})
+        worker = TaskQueueWorker(self.store, {TaskType.SETU: handlers.handle}, AsyncMock())
+        await worker.run_once()
+        self.assertEqual(get_url.call_args.args[0], [['猫耳'], ['蓝发']])
+        self.assertEqual(reply.upload_files.call_args.args[0].id, 1)
+        self.assertEqual(reply.upload_files.call_args.args[1][0]['file_name'], 'picture.png')
+        self.assertEqual(deleted.call_count, 1)
+        self.assertIn('成功', await self.send('/task'))
+        self.assertEqual(self.complete.await_count, 1)
+
+    async def test_setu_commands_zero_llm_and_invalid_tags_do_not_enqueue(self):
+        self.runtime.complete = None
+        await self.send('/setu')
+        self.assertEqual(self.store.get(1).payload, {'tags': []})
+        await self.send('/setu 猫耳 蓝发')
+        self.assertEqual(self.store.get(2).payload, {'tags': ['猫耳', '蓝发']})
+        self.assertIn('#2', await self.send('/task'))
+        self.assertIn('3', await self.send('/setu a b c d'))
+        self.store.claim_next()
+        self.store.claim_next()
+        self.assertIsNone(self.store.claim_next())
+        self.complete.assert_not_awaited()
+        self.legacy.assert_not_awaited()
+        self.assertTrue(any('插画' in m['content'] for m in self.memory.recent_messages(self.key) if m['role'] == 'assistant'))
+
+    async def test_setu_duplicate_and_worker_failure(self):
+        from ncatbot_assistant.drive_bot.jobs.handlers import TaskHandlers
+        queued = await self.send('来张插画', decision('setu'), message_id='setu-dup')
+        self.assertIn('#1', queued)
+        self.assertIsNone(await self.send('来张插画', decision('setu'), message_id='setu-dup'))
+        reply = Mock()
+        reply.upload_files = AsyncMock()
+        handlers = TaskHandlers(reply, setu_get_url=AsyncMock(return_value=(False, 'no images')))
+        worker = TaskQueueWorker(self.store, {TaskType.SETU: handlers.handle}, AsyncMock())
+        await worker.run_once()
+        self.assertIn('失败', await self.send('/task'))
+        reply.upload_files.assert_not_awaited()
+        self.assertIsNone(self.store.claim_next())
+        self.assertEqual(self.complete.await_count, 1)
+
     async def test_news_natural_requests_reach_handlers_and_latest_status(self):
         from ncatbot_assistant.drive_bot.jobs.handlers import TaskHandlers
         reply = Mock()

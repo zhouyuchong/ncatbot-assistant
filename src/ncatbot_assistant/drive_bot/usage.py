@@ -25,7 +25,7 @@ def build_drive_bot_usage() -> str:
             aliases = _format_aliases(spec.text_aliases)
             lines.append(f"- {spec.usage}: {spec.description}{aliases}")
         lines.append("")
-    lines.append("也可以说“搜索原神的本子”“下载第二个”“刚才下载好了吗”“今天有什么新闻吗”“最近有什么动漫新闻”；AI 看点、热门论文和图片请使用命令。群聊每条仍需 @ Bot。")
+    lines.append("也可以说“搜索原神的本子”“下载第二个”“刚才下载好了吗”“今天有什么新闻吗”“最近有什么动漫新闻”“来张猫耳插画”；AI 看点和热门论文请使用命令。群聊每条仍需 @ Bot。")
     return "\n".join(lines).strip()
 
 

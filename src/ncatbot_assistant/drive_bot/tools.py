@@ -46,6 +46,9 @@ def tool_schemas() -> list[dict]:
         ('jm_download', '用户明确要求下载 JM 资源。album_id 和 result_index 二选一。序号由程序解析，不能猜测 ID。缺参数用空对象。',
          {'album_id': {'type': 'integer', 'minimum': 1, 'maximum': 9223372036854775807, 'description': '用户明确提供的资源 ID'},
           'result_index': {'type': 'integer', 'minimum': 1, 'maximum': 9223372036854775807, 'description': '当前搜索结果的序号，从 1 开始'}}),
+        ('setu', '按最多 3 个标签获取一张二次元插画，例如“来张猫耳插画”。没有指定标签则随机获取。只有明确请求发图才调用，普通图片讨论不要调用。',
+         {'tags': {'type': 'array', 'maxItems': 3, 'items': {'type': 'string', 'minLength': 1},
+                   'description': '用户要求的图片标签；未指定时省略或传空数组'}}),
         ('daily_news', '获取今日综合热点新闻，例如“今天有什么新闻吗”“看看今日新闻”。使用已配置的新闻源，不支持按日期或主题筛选。仅讨论新闻功能时不要调用。', {}),
         ('anime_news', '获取动漫新闻，例如“最近有什么动漫新闻”“看看动漫资讯”。读取已配置的动漫新闻内容，不支持日期或主题筛选。普通动漫闲聊不要调用。', {}),
         ('task_status', '查询当前用户当前会话的任务状态。未指定编号时查询最近提交的任务。',
@@ -70,7 +73,7 @@ def build_enqueue_reply(task: TaskRecord, store: TaskStore) -> str:
 
 async def execute_tool(call: ToolCall, context: ToolExecutionContext) -> ToolResult:
     allowed = {'jm_search': {'keywords'}, 'jm_download': {'album_id', 'result_index'},
-               'task_status': {'task_id'}, **{name: set() for name in NEWS_TOOL_TASK_TYPES}}
+               'task_status': {'task_id'}, 'setu': {'tags'}, **{name: set() for name in NEWS_TOOL_TASK_TYPES}}
     try:
         args = json.loads(call.arguments_json)
     except (TypeError, ValueError):
@@ -90,6 +93,22 @@ async def execute_tool(call: ToolCall, context: ToolExecutionContext) -> ToolRes
         context.logger.info('Queued news tool: tool=%s task_id=%s', call.name, task.id)
         title = '每日新闻' if task_type == TaskType.DAILY else '动漫新闻'
         return _result(f'{title}\n' + build_enqueue_reply(task, context.task_store))
+
+    if call.name == 'setu':
+        tags = args.get('tags', [])
+        if not isinstance(tags, list) or len(tags) > 3:
+            return _result('图片标签需要是数组，最多支持 3 个标签。')
+        if any(not isinstance(tag, str) or not tag.strip() for tag in tags):
+            return _result('每个图片标签都需要是非空文字。')
+        tags = [tag.strip() for tag in tags]
+        intent = QueuedTaskIntent(TaskType.SETU, context.key.scope_type, context.key.user_id,
+                                  context.raw_message, {'tags': tags}, context.key.group_id)
+        task = context.enqueue(intent)
+        state.pending_action = None
+        state.last_task_id = task.id
+        context.state_store.update(context.key, state)
+        context.logger.info('Queued image tool: tool=setu task_id=%s', task.id)
+        return _result('插画图片\n' + build_enqueue_reply(task, context.task_store))
 
     if call.name == 'jm_search':
         keywords = args.get('keywords', '')
