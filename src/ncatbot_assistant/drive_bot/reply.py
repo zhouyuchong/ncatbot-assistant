@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .file_transfer import get_group_folder, upload_path
+from .file_transfer import get_group_folder, upload_path, with_upload_timeout
 from .intents import ScopeType, TaskRecord, TaskStatus
 
 
@@ -22,7 +22,7 @@ def delete_file(file_path: str, logger) -> None:
 
 class ReplyAdapter:
     def __init__(self, file_api, event_lookup):
-        self.file_api = file_api
+        self.file_api = with_upload_timeout(file_api)
         self.event_lookup = event_lookup
 
     async def upload_files(

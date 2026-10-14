@@ -1,3 +1,4 @@
+import asyncio
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest import IsolatedAsyncioTestCase
@@ -7,9 +8,12 @@ from urllib.parse import unquote
 import tests.bootstrap  # noqa: F401
 from ncatbot.api.qq import QQAPIClient
 from ncatbot.adapter.napcat.api.bot_api import NapCatBotAPI
+from ncatbot.adapter.napcat.connection.protocol import OB11Protocol
 from ncatbot_assistant.drive_bot.intents import ScopeType, TaskRecord, TaskStatus, TaskType
 from ncatbot_assistant.drive_bot.reply import ReplyAdapter
 from ncatbot_assistant.drive_bot.file_transfer import upload_path
+from ncatbot_assistant.drive_bot.jobs.queue import TaskQueueWorker
+from ncatbot_assistant.drive_bot.storage import TaskStore
 
 
 class UploadProtocol:
@@ -19,10 +23,11 @@ class UploadProtocol:
         self.filename = None
         self.uploads = []
         self.folders_created = []
+        self.upload_retcode = 0
         self.folders = [{'folder_id': 'existing', 'folder_name': '本子',
                          'creator': 1706895031}]
 
-    async def call(self, action, params=None):
+    async def call(self, action, params=None, timeout=30.0):
         if action == 'get_group_root_files':
             data = {'files': [{'uploader': 1706895031}],
                     'folders': self.folders}
@@ -40,6 +45,9 @@ class UploadProtocol:
             if path != params['file'] or '%' in path:
                 raise RuntimeError('识别URL失败')
             self.uploads.append((action, params))
+            if self.upload_retcode:
+                return {'status': 'failed', 'retcode': self.upload_retcode,
+                        'message': 'permission denied', 'data': None}
             data = {}
         elif action == 'create_group_file_folder':
             self.folders_created.append(params)
@@ -55,6 +63,67 @@ class FileUploadTest(IsolatedAsyncioTestCase):
                           status=TaskStatus.RUNNING, scope_type=scope,
                           group_id='123', user_id='456', raw_message='',
                           payload={}, estimated_seconds=1)
+
+    async def test_slow_upload_response_notifies_success_for_group_and_private(self):
+        # Scale the real protocol's timeout so the 30s/31s race runs quickly.
+        real_wait_for = asyncio.wait_for
+
+        async def scaled_wait_for(future, timeout):
+            return await real_wait_for(future, timeout=timeout / 1000)
+
+        for scope in (ScopeType.GROUP, ScopeType.PRIVATE):
+            with self.subTest(scope=scope), TemporaryDirectory() as directory:
+                backend = UploadProtocol()
+                pending_responses = []
+
+                class WebSocket:
+                    async def send(self, request):
+                        async def respond():
+                            if request['action'] in ('upload_group_file', 'upload_private_file'):
+                                await asyncio.sleep(0.05)
+                            response = await backend.call(request['action'], request['params'])
+                            await protocol.on_message({**response, 'echo': request['echo']})
+                        pending_responses.append(asyncio.create_task(respond()))
+
+                protocol = OB11Protocol(WebSocket())
+                notifications = []
+
+                class Event:
+                    async def reply(self, text):
+                        notifications.append(text)
+
+                reply = ReplyAdapter(QQAPIClient(NapCatBotAPI(protocol)).file, lambda _: Event())
+                store = TaskStore(Path(directory) / 'tasks.sqlite3')
+                store.initialize()
+                task = store.enqueue(TaskType.JM_DOWNLOAD, scope, '123', '456', '', {}, 1)
+                source = Path(directory) / '123.pdf'
+                source.write_bytes(b'%PDF-test')
+
+                async def handle(claimed):
+                    await reply.upload_files(claimed, [
+                        {'file_path': str(source), 'file_name': source.name}], '本子')
+                    return {'uploaded_files': 1}
+
+                worker = TaskQueueWorker(store, {TaskType.JM_DOWNLOAD: handle}, reply.notify_task_done)
+                with patch('ncatbot.adapter.napcat.connection.protocol.asyncio.wait_for', scaled_wait_for):
+                    await worker.run_once()
+                await asyncio.gather(*pending_responses)
+                self.assertEqual(store.get(task.id).status, TaskStatus.SUCCEEDED)
+                self.assertEqual(notifications, [f'任务 #{task.id} 完成：已上传 1 个文件。'])
+                self.assertEqual(len(backend.uploads), 1)
+
+    async def test_server_upload_error_is_not_reported_as_success(self):
+        for scope in (ScopeType.GROUP, ScopeType.PRIVATE):
+            with self.subTest(scope=scope), TemporaryDirectory() as directory:
+                backend = UploadProtocol()
+                backend.upload_retcode = 1200
+                reply = ReplyAdapter(QQAPIClient(NapCatBotAPI(backend)).file, lambda _: None)
+                source = Path(directory) / '123.pdf'
+                source.write_bytes(b'%PDF-test')
+                with self.assertRaisesRegex(Exception, 'permission denied'):
+                    await reply.upload_files(self.task(scope), [
+                        {'file_path': str(source), 'file_name': source.name}], '本子')
+                self.assertEqual(len(backend.uploads), 1)
 
     async def test_special_filename_uploads_in_group_and_private(self):
         for scope in (ScopeType.GROUP, ScopeType.PRIVATE):

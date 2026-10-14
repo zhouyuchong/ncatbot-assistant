@@ -13,6 +13,37 @@ from uuid import uuid4
 log = logging.getLogger(__name__)
 
 
+class UploadTimeoutProtocol:
+    """Give final QQ transfers two minutes; retain other API timeouts."""
+
+    def __init__(self, protocol):
+        self.protocol = protocol
+
+    async def call(self, action, params=None):
+        if action in ("upload_group_file", "upload_private_file"):
+            return await self.protocol.call(action, params, timeout=120.0)
+        return await self.protocol.call(action, params)
+
+
+def with_upload_timeout(file_api):
+    """Build a local NapCat client without mutating the bot's shared protocol."""
+    from ncatbot.adapter.napcat.api.bot_api import NapCatBotAPI
+    from ncatbot.api.qq import QQAPIClient
+    from ncatbot.api.qq.file import QQFile
+    from ncatbot.api.qq.proxy import QQLoggingProxy
+
+    if not isinstance(file_api, QQFile):
+        return file_api
+    raw_api = file_api._api
+    if isinstance(raw_api, QQLoggingProxy):
+        raw_api = raw_api._real
+    if not isinstance(raw_api, NapCatBotAPI):
+        return file_api
+    # NcatBot's high-level upload API does not expose the protocol timeout.
+    # Retain its preupload/error handling, overriding only the final transfer.
+    return QQAPIClient(NapCatBotAPI(UploadTimeoutProtocol(raw_api._protocol))).file
+
+
 @contextmanager
 def upload_path(file_path: str):
     """Stage unsafe basenames without changing the displayed name or source.
