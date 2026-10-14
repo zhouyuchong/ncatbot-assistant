@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from .file_transfer import get_group_folder, upload_path
 from .intents import ScopeType, TaskRecord, TaskStatus
 
 
@@ -31,25 +32,28 @@ class ReplyAdapter:
         folder_name: str,
     ) -> None:
         if task.scope_type == ScopeType.GROUP:
-            folder_id = await self.file_api.get_or_create_group_folder(
+            folder_id = await get_group_folder(
+                self.file_api,
                 task.group_id,
                 folder_name,
             )
             for item in files:
-                await self.file_api.upload_group_file(
-                    group_id=task.group_id,
-                    file=item["file_path"],
-                    name=item["file_name"],
-                    folder_id=folder_id,
-                )
+                with upload_path(item["file_path"]) as path:
+                    await self.file_api.upload_group_file(
+                        group_id=task.group_id,
+                        file=path,
+                        name=item["file_name"],
+                        folder_id=folder_id,
+                    )
             return
 
         for item in files:
-            await self.file_api.upload_private_file(
-                user_id=task.user_id,
-                file=item["file_path"],
-                name=item["file_name"],
-            )
+            with upload_path(item["file_path"]) as path:
+                await self.file_api.upload_private_file(
+                    user_id=task.user_id,
+                    file=path,
+                    name=item["file_name"],
+                )
 
     async def reply_direct_image(self, task: TaskRecord, text: str, image_path: str) -> None:
         event = self.event_lookup(task)
